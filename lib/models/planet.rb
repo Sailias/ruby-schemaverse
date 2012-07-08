@@ -24,16 +24,31 @@ class Planet < ActiveRecord::Base
     n.capitalize
   end
 
+  def location_x
+    self.location[1..-1].split(',').first
+  end
+
+  def location_y
+    self.location.split(',').last.chop
+  end
+
   def ships
-    MyShip.where("location ~= POINT(?)", self.location)
+    MyShip.where("location ~= POINT(?) OR (location_x = ? AND location_y = ?)", self.location, self.location_x, self.location_y)
   end
 
   def closest_planet
     finder = self.class.select("id, name, location, planets.location<->POINT('#{self.location}') as distance")
-    self.class.my_planets.each do |p|
-      finder = finder.where("NOT location ~= POINT(?)", p.location)
-    end
+    finder.where("conqueror_id <> ?", MyPlayer.first.id)
     finder.order("distance ASC").first
+  end
+
+  def closest_planets(limit = 10)
+    finder = self.class.select("id, name, location, planets.location<->POINT('#{self.location}') as distance")
+    finder.where("conqueror_id <> ?", MyPlayer.first.id)
+    #self.class.my_planets.each do |p|
+    #  finder = finder.where("NOT location ~= POINT(?)", p.location)
+    #end
+    finder.order("distance ASC").limit(limit)
   end
 
 end
