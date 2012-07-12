@@ -14,6 +14,24 @@ class Functions
     def get_numeric_variable(var)
       ActiveRecord::Base.connection.execute("SELECT GET_NUMERIC_VARIABLE('#{var}') as numeric_variable").first["numeric_variable"].to_f
     end
+
+    def db_distance_between(point_a, point_b)
+      ActiveRecord::Base.connection.execute("SELECT POINT('#{point_a}') <-> POINT('#{point_b}') as distance").first["distance"].to_f
+    end
+
+    def distance_between(obj_a, obj_b)
+      p1 = GeoRuby::SimpleFeatures::Point.from_x_y(get_x(obj_a), get_y(obj_a))
+      p2 = GeoRuby::SimpleFeatures::Point.from_x_y(get_x(obj_b), get_y(obj_b))
+      p1.euclidian_distance(p2)
+    end
+
+    def get_x(obj)
+      obj.location.split(",").first[1..-1].to_f
+    end
+
+    def get_y(obj)
+      obj.location.split(',').last.chop.to_f
+    end
     
   end
 

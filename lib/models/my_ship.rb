@@ -4,6 +4,9 @@ class MyShip < ActiveRecord::Base
   has_many :planets_in_range, :foreign_key => "ship"
   has_many :ships_in_range, :foreign_key => "ship_in_range_of"
 
+  attr_accessor :objective
+  attr_accessor :distance_from_objective
+
   def self.mine_all_planets
     # TODO: This doesn't work
     sql = "UPDATE my_ships SET
@@ -37,6 +40,10 @@ class MyShip < ActiveRecord::Base
 
   def mine(planet_id)
     self.class.select("MINE(#{self.id}, #{planet_id})").where(:id => self.id).first
+  end
+
+  def total_skill
+    self.attack + self.defense + self.prospecting + self.engineering
   end
 
   def course_control(speed, direction = nil, destination = nil)

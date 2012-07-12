@@ -1,6 +1,7 @@
 require 'rubygems'
 require 'active_record'
 require 'yaml'
+require 'geo_ruby'
 
 
 if ENV['DATABASE_URL'].nil?
