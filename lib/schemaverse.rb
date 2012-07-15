@@ -1,7 +1,8 @@
 class Schemaverse
   def initialize
     if Planet.where(:name => Planet.my_home_name).empty?
-      Planet.my_planets.first.update_attribute('name', Planet.my_home_name)
+      new_home = Planet.my_planets.first
+      new_home.update_attribute('name', Planet.my_home_name) if new_home
     end
 
     @my_player = MyPlayer.first
@@ -9,6 +10,7 @@ class Schemaverse
     @max_ship_skill = Functions.get_numeric_variable('MAX_SHIP_SKILL')
     @max_ship_fuel = Functions.get_numeric_variable('MAX_SHIP_FUEL')
     @ships = []
+    @lost_ships = []
     @planets = []
     @lost_planets = []
   end
@@ -27,7 +29,8 @@ class Schemaverse
           planet.update_attribute('name', Planet.get_new_planet_name(i.to_s))
         end
 
-        my_planets = Planet.my_planets.order("planets.location<->POINT('#{@home.location}') DESC").all
+        my_planets = []
+        my_planets = Planet.my_planets.order("planets.location<->POINT('#{@home.location}') DESC").all if @home
         new_planets = my_planets - @planets
         @lost_planets += @planets - my_planets
         @planets = my_planets
@@ -44,6 +47,17 @@ class Schemaverse
           end
         end
 
+        # Start killing of ships at planets that in my interior
+        @planets.each do |planet|
+          if planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.empty?
+            planet.ships.each do |ship|
+              # Have all the ships at the planet destroy themselves.
+              # TODO, just put these ships into trade!
+              ship.commence_attack(ship.id)
+            end
+          end
+        end
+
         @planets.each do |planet|
           begin
             conquer_planet(planet)
@@ -53,20 +67,9 @@ class Schemaverse
           end
         end
 
-        # Start killing of ships at planets that in my interior
-        @planets.each do |planet|
-          if planet.closest_planets(5).select{|p| p.conqueror_id != @my_player.id}.empty?
-            planet.ships.each do |ship|
-              # Have all the ships at the planet destroy themselves.
-              # TODO, just put these ships into trade! n
-              ship.commence_attack(ship.id)
-            end
-          end
-        end
-
         # Ships that are out of fuel that haven't reached their destination
         puts "Checking for ships travelling that are out of fuel"
-        @ships.select{|s| s.type.eql?("Travelling")}.each do |ship|
+        @ships.select { |s| s.type.eql?("Travelling") }.each do |ship|
           if @my_player.fuel_reserve > ship.max_fuel
             ship.refuel_ship
             @my_player.fuel_reserve -= ship.max_fuel
@@ -203,7 +206,7 @@ class Schemaverse
 
     # calculate the closest travelling ship and it's distance to it's target and the distance
     # from the target to our target destination
-    closest_travelling_ship = @travelling_ships.sort { |ts|
+    closest_travelling_ship = @ships.select{|s| s.type.eql?("Travelling")}.sort { |ts|
       (ts.distance_from_objective + Functions.distance_between(ts.objective, to)) / ts.max_speed
     }.first
 
