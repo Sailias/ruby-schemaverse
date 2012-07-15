@@ -1,4 +1,4 @@
-class Planet < ActiveRecord::Base 
+class Planet < ActiveRecord::Base
   self.primary_key = 'id'
 
   scope :my_planets, where(:conqueror_id => MyPlayer.first.id)
@@ -38,16 +38,11 @@ class Planet < ActiveRecord::Base
 
   def closest_planet
     finder = self.class.select("id, name, location, planets.location<->POINT('#{self.location}') as distance")
-    finder.where("conqueror_id <> ?", MyPlayer.first.id)
     finder.order("distance ASC").first
   end
 
   def closest_planets(limit = 10)
     finder = self.class.select("id, name, location, planets.location<->POINT('#{self.location}') as distance")
-    finder.where("conqueror_id <> ?", MyPlayer.first.id)
-    #self.class.my_planets.each do |p|
-    #  finder = finder.where("NOT location ~= POINT(?)", p.location)
-    #end
     finder.order("distance ASC").limit(limit)
   end
 

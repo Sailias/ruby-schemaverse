@@ -9,7 +9,6 @@ class Schemaverse
     @max_ship_skill = Functions.get_numeric_variable('MAX_SHIP_SKILL')
     @max_ship_fuel = Functions.get_numeric_variable('MAX_SHIP_FUEL')
     @ships = []
-    @travelling_ships = []
     @planets = []
     @lost_planets = []
   end
@@ -31,8 +30,21 @@ class Schemaverse
         my_planets = Planet.my_planets.order("planets.location<->POINT('#{@home.location}') DESC").all
         new_planets = my_planets - @planets
         @lost_planets += @planets - my_planets
-        @planets = @planets + new_planets
-        my_planets.each do |planet|
+        @planets = my_planets
+
+        my_ships = MyShip.all
+        @lost_ships += @ships - my_ships
+        @ships = my_ships
+
+        @ships.each do |ship|
+          # Loop through all ships to update their values in memory
+          unless ship.objective.blank?
+            # Update the location and the distance between the objective
+            ship.distance_to_objective = Functions.distance_between(ship.location, objective.location)
+          end
+        end
+
+        @planets.each do |planet|
           begin
             conquer_planet(planet)
           rescue Exception => e
@@ -41,32 +53,25 @@ class Schemaverse
           end
         end
 
-        # Ships that are out of fuel that haven't reached their destination
-        puts "Checking for ships travelling that are out of fuel"
-
-        my_ships = MyShip.all
-        @lost_ships += @ships - my_ships
-        @ships = my_ships
-
-        my_ships.each do |ship|
-          # Loop through all ships to update their values in memory
-          s = @ships[@ships.index(ship)]
-          unless s.objective.blank?
-            # Update the location and the distance between the objective
-            s.location = ship.location
-            s.distance_to_objective = Functions.distance_between(s.location, objective.location)
+        # Start killing of ships at planets that in my interior
+        @planets.each do |planet|
+          if planet.closest_planets(5).select{|p| p.conqueror_id != @my_player.id}.empty?
+            planet.ships.each do |ship|
+              # Have all the ships at the planet destroy themselves.
+              # TODO, just put these ships into trade! n
+              ship.commence_attack(ship.id)
+            end
           end
         end
 
-
-        #MyShip.where("not location ~= destination AND current_fuel < max_speed AND NOT CIRCLE(my_ships.destination, 10000) @> POINT(my_ships.location)").each do |explorer|
-        #  begin
-        #    puts "Refueling ship #{explorer.name}"
-        #    explorer.refuel_ship
-        #  rescue Exception => e
-        #    puts e.message
-        #  end
-        #end
+        # Ships that are out of fuel that haven't reached their destination
+        puts "Checking for ships travelling that are out of fuel"
+        @ships.select{|s| s.type.eql?("Travelling")}.each do |ship|
+          if @my_player.fuel_reserve > ship.max_fuel
+            ship.refuel_ship
+            @my_player.fuel_reserve -= ship.max_fuel
+          end
+        end
 
         puts "Checking for ships to attack"
         MyShip.joins(:ships_in_range).each do |attack_ship|
@@ -160,7 +165,7 @@ class Schemaverse
 
     planet_in_array = @planets[@planets.index(planet)]
     if planet_in_array
-      planet_in_array.closest_planets(5).each do |expand_planet|
+      planet_in_array.closest_planets(5).where("conqueror_id <> ?", @my_player.id).each do |expand_planet|
         unless @planets.include?(expand_planet)
           # This is still a planet we need to capture
           explorer_object = calculate_efficient_travel(to)
@@ -177,62 +182,16 @@ class Schemaverse
             if ship.id?
               ship = ship.reload
               ship.update_attributes(:action => "ATTACK")
+              if explorer_ship.course_control(Functions.distance_between(explorer_object, planet) / 2, nil, planet.location)
+                ship.type = "Travelling"
+              end
+
               # Load the ship into our array
               @ships << ship
-              if explorer_ship.course_control(Functions.distance_between(explorer_object, planet) / 2, nil, planet.location)
-                @travelling_ships << ship
-              end
             end
-          elsif explorer_object.is_a?(TravellingShip)
-            TravellingShip.queue += explorer_object
+          elsif explorer_object.is_a?(Ship) && explorer_object.type == "Travelling"
+            explorer_object.queue += expand_planet
           end
-        end
-      end
-
-    end
-
-    if MyShip.count < 2000 || planet.ships.count > 10
-      finder = planet.closest_planets(2)
-      MyShip.all.each do |my_ship|
-        # Make sure we don't have any ships that have reached this planet but have not conquered it.
-        finder = finder.where("NOT CIRCLE(planets.location, 10000) @> POINT(?)", my_ship.location)
-
-        # Make sure we don't have any ships enroute to this planet
-        finder = finder.where("NOT location ~= POINT(?)", my_ship.destination) unless my_ship.destination.blank?
-      end
-    else
-      finder = []
-    end
-    finder.each do |closest_planet|
-      if @my_player.total_resources >= 1000 + (total_cost = @max_ship_fuel * 2 + 360)
-        explorer_ship = nil
-        if MyShip.count < 2000
-          @my_player.convert_fuel_to_money(1000) if @my_player.balance < 1000
-          explorer_ship = planet.ships.create(
-            :name => "#{USERNAME}-#{closest_planet.name}-explorer",
-            :prospecting => 20,
-            :attack => 0,
-            :defense => 0,
-            :engineering => 0,
-            :location => planet.location
-          )
-        else
-          explorer_ship = planet.ships.first
-          explorer_ship.update_attribute("name", "#{USERNAME}-#{closest_planet.name}-explorer")
-        end
-
-        if explorer_ship && explorer_ship.id?
-          puts "Expanding to the closest planet from #{planet.name} to #{closest_planet.name} which is #{closest_planet.distance} light years away"
-          explorer_ship = explorer_ship.reload
-          explorer_ship.update_attributes(:action => "MINE", :action_target_id => closest_planet.id)
-          @my_player.convert_fuel_to_money((total_cost - @my_player.balance).ceil) if @my_player.balance < total_cost
-          #upgrade_amount = closest_planet.distance.to_f.ceil > @max_ship_fuel - ship.max_fuel ? @max_ship_fuel - ship.max_fuel : closest_planet.distance.to_f.ceil
-          explorer_ship.upgrade("MAX_FUEL", (@max_ship_fuel - explorer_ship.current_fuel).ceil) unless explorer_ship.current_fuel == @max_ship_fuel
-          explorer_ship.upgrade("MAX_SPEED", (@max_ship_fuel / 2).to_i)
-          explorer_ship.refuel_ship
-          explorer_ship = explorer_ship.reload
-          puts "Sending ship #{explorer_ship.name}"
-          explorer_ship.course_control((closest_planet.distance.to_f / 2).ceil, nil, closest_planet.location)
         end
       end
     end
@@ -262,11 +221,10 @@ class Schemaverse
 
   class << self
     def fuel_needed_for_next_tic
-      @ships.select { |s| !s.objective.blank? }.inject(0) do |result, ship|
-        if ship.distance_to_objective < ship.max_fuel
-          result += ship.distance_to_objective
-        else
-          result += ship.max_fuel
+      @ships.select { |s| s.type.eql?("Travelling") }.inject(0) do |result, ship|
+        # Keep the fuel above 50% at all times
+        if ship.current_fuel < (ship.max_fuel / 2)
+          result += ship.max_fuel - ship.current_fuel
         end
       end
     end
