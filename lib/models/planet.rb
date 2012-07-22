@@ -42,7 +42,7 @@ class Planet < ActiveRecord::Base
   end
 
   def closest_planets(limit = 10)
-    finder = self.class.select("id, name, location, planets.location<->POINT('#{self.location}') as distance")
+    finder = self.class.select("id, name, location, conqueror_id, planets.location<->POINT('#{self.location}') as distance")
     finder.order("distance ASC").limit(limit)
   end
 
