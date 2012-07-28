@@ -14,6 +14,7 @@ class Schemaverse
     @max_ship_skill = Functions.get_numeric_variable('MAX_SHIP_SKILL')
     @max_ship_fuel = Functions.get_numeric_variable('MAX_SHIP_FUEL')
     @ships = MyShip.all
+    @travelling_ships = []
 
     @ships.each do |ship|
       unless ship.destination.blank?
@@ -23,15 +24,16 @@ class Schemaverse
           if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
             # STORE travelling ships here!
             REDIS.rpush "travelling_ships", ship.attributes.to_json
+            @travelling_ships << ship
           end
         end
       end
     end
 
-    @travelling_ships = []
     @armada_ships = []
     @lost_ships = []
     @my_planets = Planet.my_planets.all
+    @objective_planets = []
     @lost_planets = []
     @tic = 0
 
@@ -73,23 +75,37 @@ class Schemaverse
         @lost_ships += @ships - my_ships
         @ships = @ships - @lost_ships
 
+        @travelling_ships = []
 
-
-        REDIS.del "ships"
+        # Update all my travelling ships
         my_ships.each do |ship|
-          REDIS.rpush "ships", ship.to_json
-
-          REDIS.lrange('ships', 0, REDIS.llen('ships')).each_with_index do |redis_ship, i|
+          REDIS.lrange('travelling_ships', 0, REDIS.llen('travelling_ships')).each_with_index do |redis_ship, i|
             attrs = JSON.parse redis_ship
             if ship.id == redis_ship['id']
               # We found our ship in redis
-              REDIS.lset "ships", i, ship.attributes.to_json
+              REDIS.lset "travelling_ships", i, ship.attributes.to_json
+              @travelling_ships << ship
             end
           end
         end
 
-        @travelling_ships = @ships.select { |s| s.type == "Travelling" }
-        @armada_ships = @ships.select { |s| s.type == "Armada" }
+        # Remove all destroyed ships from our travelling ships
+        @lost_ships.each do |ship|
+          REDIS.lrange('travelling_ships', 0, REDIS.llen('travelling_ships')).each_with_index do |redis_ship, i|
+            attrs = JSON.parse redis_ship
+            if ship.id == redis_ship['id']
+              # We found our ship in redis AND IT HAS BEEN DESTROYED!!
+              REDIS.lrem "travelling_ships", 0, redis_ship
+              if ship.objective
+                planet = ship.objective
+                if @travelling_ships.select{|s| s.objective}
+              end
+            end
+          end
+        end
+
+        #@travelling_ships = @ships.select { |s| s.type == "Travelling" }
+        #@armada_ships = @ships.select { |s| s.type == "Armada" }
 
         # Ships that are out of fuel that haven't reached their destination
         puts "Checking for ships travelling that are out of fuel"
@@ -105,7 +121,7 @@ class Schemaverse
         @planets.each do |planet|
           conquer_planet(planet)
 
-          if planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.empty?
+          if planet.closest_planets(5).select{ |p| p.conqueror_id != @my_player.id }.empty?
             planet.ships.each do |ship|
               # Have all the ships at the planet destroy themselves.
               # TODO, just put these ships into trade!
@@ -123,7 +139,7 @@ class Schemaverse
                 travelling_ship.update_attributes(:action => "MINE", :action_target_id => travelling_ship.objective.id)
               else
                 begin
-                  call_for_reinforcements(travelling_ship) if !travelling_ship.objective.conqueror_id.eql?(@my_player.id) && (@ships - [travelling_ship]).select { |s| s.destination == travelling_ship.destination }.empty?
+                  #call_for_reinforcements(travelling_ship) if !travelling_ship.objective.conqueror_id.eql?(@my_player.id) && (@ships - [travelling_ship]).select { |s| s.destination == travelling_ship.destination }.empty?
                   travelling_ship.update_attributes(:action => "ATTACK", :action_target_id => nil)
                 rescue Exception => e
                   puts e.message
@@ -141,26 +157,26 @@ class Schemaverse
             end
           end
 
-          if @planets.include?(travelling_ship.objective)
-            puts "Processing queue"
-            travelling_ship.process_next_queue_item
-          end
+          #if @planets.include?(travelling_ship.objective)
+          #  puts "Processing queue"
+          #  travelling_ship.process_next_queue_item
+          #end
         end
 
-        @armada_ships.each do |armada_ship|
-          unless armada_ship.at_destination?
-            begin
-              armada_ship.modify_speed(@ships)
-              armada_ship.modify_fuel(@ships)
-            rescue Exception => e
-              puts e.message
-            end
-          else
-            if armada_ship.ships_in_range.empty?
-              travelling_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
-            end
-          end
-        end
+        #@armada_ships.each do |armada_ship|
+        #  unless armada_ship.at_destination?
+        #    begin
+        #      armada_ship.modify_speed(@ships)
+        #      armada_ship.modify_fuel(@ships)
+        #    rescue Exception => e
+        #      puts e.message
+        #    end
+        #  else
+        #    if armada_ship.ships_in_range.empty?
+        #      travelling_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
+        #    end
+        #  end
+        #end
 
         puts "Checking for ships to attack"
         MyShip.joins(:ships_in_range).each do |attack_ship|
@@ -258,7 +274,7 @@ class Schemaverse
 
   def expand_to_new_planet(planet)
     # Our miners are getting maxed, lets build a ship and send him to the next closest planet
-    planet.closest_planets(10).where("conqueror_id <> ?", @my_player.id).select{ |p| !@ships.collect(&:objective).include?(p) }.each do |expand_planet|
+    planet.closest_planets(10).where("conqueror_id <> ?", @my_player.id).select{|p| !@ships.collect(&:objective).include?(p) }.each do |expand_planet|
       unless @planets.include?(expand_planet)
         # This is still a planet we need to capture
         explorer_object = calculate_efficient_travel(planet)
