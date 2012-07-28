@@ -25,3 +25,6 @@ end
 
 load('config/initializers/db.rb')
 load('lib/functions.rb')
+
+r = Redis.new(:host => "localhost", :port => 6379)
+REDIS = Redis::Namespace.new(USERNAME.to_sym, :redis => r)

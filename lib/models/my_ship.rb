@@ -69,7 +69,7 @@ class MyShip < ActiveRecord::Base
       #upgrade_amount = available_funds <= upgrade_amount_available * PriceList.max_speed ? available_funds / PriceList.max_speed : upgrade_amount_available
       upgrade_amount = upgrade_amount_available / 3
 
-      player = self.my_player
+      player = MyPlayer.first
 
       if upgrade_amount.to_i > 0 && upgrade_amount * PriceList.max_speed <= player.total_resources
         MyPlayer.first.convert_fuel_to_money(upgrade_amount.to_i * PriceList.max_speed) if player.balance < upgrade_amount.to_i * PriceList.max_speed
@@ -91,8 +91,10 @@ class MyShip < ActiveRecord::Base
       #upgrade_amount = available_funds <= upgrade_amount_available * PriceList.max_fuel ? available_funds / PriceList.max_fuel : upgrade_amount_available
       upgrade_amount = upgrade_amount_available / 3
 
-      if upgrade_amount.to_i > 0 && upgrade_amount * PriceList.max_fuel < my_player.total_resources
-        MyPlayer.first.convert_fuel_to_money(upgrade_amount.to_i * PriceList.max_fuel) if MyPlayer.first.balance < upgrade_amount.to_i * PriceList.max_fuel
+      player = MyPlayer.first
+
+      if upgrade_amount.to_i > 0 && upgrade_amount * PriceList.max_fuel < player.total_resources
+        MyPlayer.first.convert_fuel_to_money(upgrade_amount.to_i * PriceList.max_fuel) if player.balance < upgrade_amount.to_i * PriceList.max_fuel
         if self.upgrade('MAX_FUEL', upgrade_amount.to_i)
           puts "upgrading #{self.name} fuel #{upgrade_amount}"
         end

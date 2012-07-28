@@ -21,7 +21,8 @@ class Schemaverse
         if ship.objective
           ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
           if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
-            ship.type = "Travelling"
+            # STORE travelling ships here!
+            REDIS.rpush "travelling_ships", ship.attributes.to_json
           end
         end
       end
@@ -30,9 +31,14 @@ class Schemaverse
     @travelling_ships = []
     @armada_ships = []
     @lost_ships = []
-    @planets = Planet.my_planets.all
+    @my_planets = Planet.my_planets.all
     @lost_planets = []
     @tic = 0
+
+    Planet.not_my_planets.select("id, name, location, conqueror_id, planets.location<->POINT('#{@home.location}') as distance").order("distance ASC").each do |planet|
+      REDIS.rpush 'objective_planets', planet.attributes.to_json
+      @objective_planets << planet
+    end
   end
 
   def play
@@ -67,22 +73,17 @@ class Schemaverse
         @lost_ships += @ships - my_ships
         @ships = @ships - @lost_ships
 
-        @ships.each do |ship|
-          # Loop through all ships to update their values in memory
-          unless ship.objective.blank?
-            s = MyShip.find_by_id(ship.id)
-            if s
-              ship.location = s.location
-              # Update the location and the distance between the objective
-              ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
-              ship.speed = s.speed
-              if ship.distance_from_objective > ship.range
-                if ship.defense > 100
-                  ship.type = "Armada"
-                else
-                  ship.type = "Travelling"
-                end
-              end
+
+
+        REDIS.del "ships"
+        my_ships.each do |ship|
+          REDIS.rpush "ships", ship.to_json
+
+          REDIS.lrange('ships', 0, REDIS.llen('ships')).each_with_index do |redis_ship, i|
+            attrs = JSON.parse redis_ship
+            if ship.id == redis_ship['id']
+              # We found our ship in redis
+              REDIS.lset "ships", i, ship.attributes.to_json
             end
           end
         end
@@ -148,8 +149,12 @@ class Schemaverse
 
         @armada_ships.each do |armada_ship|
           unless armada_ship.at_destination?
-            armada_ship.modify_speed(@ships)
-            armada_ship.modify_fuel(@ships)
+            begin
+              armada_ship.modify_speed(@ships)
+              armada_ship.modify_fuel(@ships)
+            rescue Exception => e
+              puts e.message
+            end
           else
             if armada_ship.ships_in_range.empty?
               travelling_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
@@ -253,7 +258,7 @@ class Schemaverse
 
   def expand_to_new_planet(planet)
     # Our miners are getting maxed, lets build a ship and send him to the next closest planet
-    planet.closest_planets(10).where("conqueror_id <> ?", @my_player.id).select { |p| !@ships.collect(&:objective).include?(p) }.each do |expand_planet|
+    planet.closest_planets(10).where("conqueror_id <> ?", @my_player.id).select{ |p| !@ships.collect(&:objective).include?(p) }.each do |expand_planet|
       unless @planets.include?(expand_planet)
         # This is still a planet we need to capture
         explorer_object = calculate_efficient_travel(planet)
