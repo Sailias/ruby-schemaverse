@@ -310,7 +310,7 @@ class Schemaverse
     #planet.closest_planets(10).where("conqueror_id <> ?", @my_player.id).select { |p| !@ships.collect(&:objective).include?(p) }.each do |expand_planet|
     #unless @planets.include?(expand_planet)
     # This is still a planet we need to capture
-    explorer_object = calculate_efficient_travel(planet)
+    explorer_object = calculate_efficient_travel(expand_planet)
     if explorer_object.is_a?(Planet)
       @my_player.convert_fuel_to_money(PriceList.ship) if @my_player.balance < PriceList.ship
       explorer_ship = explorer_object.ships.create(
