@@ -16,16 +16,14 @@ class Schemaverse
     @ships = MyShip.all
     @travelling_ships = []
 
-    @ships.each do |ship|
-      unless ship.destination.blank?
-        ship.objective = Planet.where("location ~= POINT(?)", ship.destination).first
-        if ship.objective
-          ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
-          if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
-            # STORE travelling ships here!
-            REDIS.rpush "travelling_ships", ship.attributes.to_json
-            @travelling_ships << ship
-          end
+    @ships.select { |s| !s.destination.blank? }.each do |ship|
+      ship.objective = Planet.where("location ~= POINT(?)", ship.destination).first
+      if ship.objective
+        ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
+        if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
+          # STORE travelling ships here!
+          #REDIS.rpush "travelling_ships", ship.attributes.to_json
+          @travelling_ships << ship
         end
       end
     end
@@ -33,12 +31,13 @@ class Schemaverse
     @armada_ships = []
     @lost_ships = []
     @my_planets = Planet.my_planets.all
+    @planets = []
     @objective_planets = []
     @lost_planets = []
     @tic = 0
 
     Planet.not_my_planets.select("id, name, location, conqueror_id, planets.location<->POINT('#{@home.location}') as distance").order("distance ASC").each do |planet|
-      REDIS.rpush 'objective_planets', planet.attributes.to_json
+      #REDIS.rpush 'objective_planets', planet.attributes.to_json
       @objective_planets << planet
     end
   end
@@ -58,15 +57,18 @@ class Schemaverse
       if last_tic != @tic
         puts "Starting new Tic"
         last_tic = @tic
-        Planet.my_planets.not_home.where("name NOT LIKE ?", "%#{USERNAME}%").each_with_index do |planet, i|
-          planet.update_attribute('name', Planet.get_new_planet_name(i.to_s))
-        end
 
         @my_player = MyPlayer.first
 
         my_planets = []
         my_planets = Planet.my_planets.order("planets.location<->POINT('#{@home.location}') DESC").all if @home
         new_planets = my_planets - @planets
+
+        new_planets.each_with_index do |planet, i|
+          planet.update_attribute('name', Planet.get_new_planet_name(i.to_s))
+          @objective_planets.delete(planet) if @objective_planets.index(planet)
+        end
+
         @lost_planets += @planets - my_planets
         @planets = my_planets
 
@@ -76,33 +78,52 @@ class Schemaverse
         @ships = @ships - @lost_ships
 
         @travelling_ships = []
-
-        # Update all my travelling ships
-        my_ships.each do |ship|
-          REDIS.lrange('travelling_ships', 0, REDIS.llen('travelling_ships')).each_with_index do |redis_ship, i|
-            attrs = JSON.parse redis_ship
-            if ship.id == redis_ship['id']
-              # We found our ship in redis
-              REDIS.lset "travelling_ships", i, ship.attributes.to_json
+        my_ships.select { |s| !s.destination.blank? }.each do |ship|
+          ship.objective = Planet.where("location ~= POINT(?)", ship.destination).first
+          if ship.objective
+            ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
+            if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
+              # STORE travelling ships here!
+              #REDIS.rpush "travelling_ships", ship.attributes.to_json
               @travelling_ships << ship
             end
           end
         end
 
-        # Remove all destroyed ships from our travelling ships
-        @lost_ships.each do |ship|
-          REDIS.lrange('travelling_ships', 0, REDIS.llen('travelling_ships')).each_with_index do |redis_ship, i|
-            attrs = JSON.parse redis_ship
-            if ship.id == redis_ship['id']
-              # We found our ship in redis AND IT HAS BEEN DESTROYED!!
-              REDIS.lrem "travelling_ships", 0, redis_ship
-              if ship.objective
-                planet = ship.objective
-                if @travelling_ships.select{|s| s.objective}
-              end
-            end
-          end
+
+        # Update all my travelling ships
+        #my_ships.each do |ship|
+        #  REDIS.lrange('travelling_ships', 0, REDIS.llen('travelling_ships')).each_with_index do |redis_ship, i|
+        #    attrs = JSON.parse redis_ship
+        #    if ship.id == redis_ship['id']
+        #      # We found our ship in redis
+        #      REDIS.lset "travelling_ships", i, ship.attributes.to_json
+        #      @travelling_ships << ship
+        #    end
+        #  end
+        #end
+
+        # Add the planet back to the start of our objective planets
+        @lost_ships.collect(&:objective).compact.select { |o| o.is_a?(Planet) && !@planets.include?(o) }.each do |planet|
+          @objective_planets.unshift(planet) unless @objective_planets.include?(planet)
         end
+
+        # Remove all destroyed ships from our travelling ships
+        #@lost_ships.each do |ship|
+        #  REDIS.lrange('travelling_ships', 0, REDIS.llen('travelling_ships')).each_with_index do |redis_ship, i|
+        #    attrs = JSON.parse redis_ship
+        #    if ship.id == redis_ship['id']
+        #      # We found our ship in redis AND IT HAS BEEN DESTROYED!!
+        #      REDIS.lrem "travelling_ships", 0, redis_ship
+        #      if ship.objective
+        #        planet = ship.objective
+        #        if @travelling_ships.select{|s| s.objective}
+        #
+        #        end
+        #      end
+        #    end
+        #  end
+        #end
 
         #@travelling_ships = @ships.select { |s| s.type == "Travelling" }
         #@armada_ships = @ships.select { |s| s.type == "Armada" }
@@ -117,18 +138,24 @@ class Schemaverse
           end
         end
 
-        # Start killing of ships at planets that in my interior
-        @planets.each do |planet|
-          conquer_planet(planet)
-
-          if planet.closest_planets(5).select{ |p| p.conqueror_id != @my_player.id }.empty?
-            planet.ships.each do |ship|
-              # Have all the ships at the planet destroy themselves.
-              # TODO, just put these ships into trade!
-              ship.commence_attack(ship.id)
-            end
+        if @travelling_ships.select { |s| s.at_destination? }.size > 0 || @travelling_ships.size <= 10
+          (@travelling_ships.select { |s| s.at_destination? }.size + (10 - @travelling_ships.size)).times do |i|
+            expand_to_new_planet(@objective_planets[i])
           end
         end
+
+        # Start killing of ships at planets that in my interior
+        #@planets.each do |planet|
+        #  conquer_planet(planet)
+        #
+        #  if planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.empty?
+        #    planet.ships.each do |ship|
+        #      # Have all the ships at the planet destroy themselves.
+        #      # TODO, just put these ships into trade!
+        #      ship.commence_attack(ship.id)
+        #    end
+        #  end
+        #end
 
         # handle all travelling ships
         @travelling_ships.each do |travelling_ship|
@@ -161,6 +188,13 @@ class Schemaverse
           #  puts "Processing queue"
           #  travelling_ship.process_next_queue_item
           #end
+        end
+
+        @planets.each do |planet|
+          if (planet.mine_limit - planet.ships.size) > 0
+            puts "#{planet.name} needs ships"
+            create_ships_for_planet(planet)
+          end
         end
 
         #@armada_ships.each do |armada_ship|
@@ -203,7 +237,6 @@ class Schemaverse
   end
 
   def create_ships_for_planet(planet)
-    puts "This planet needs ships"
     (planet.mine_limit - planet.ships.size).times do
       if @my_player.balance < PriceList.ship
         @my_player.convert_fuel_to_money(PriceList.ship)
@@ -272,44 +305,53 @@ class Schemaverse
     end
   end
 
-  def expand_to_new_planet(planet)
+  def expand_to_new_planet(expand_planet)
     # Our miners are getting maxed, lets build a ship and send him to the next closest planet
-    planet.closest_planets(10).where("conqueror_id <> ?", @my_player.id).select{|p| !@ships.collect(&:objective).include?(p) }.each do |expand_planet|
-      unless @planets.include?(expand_planet)
-        # This is still a planet we need to capture
-        explorer_object = calculate_efficient_travel(planet)
-        if explorer_object.is_a?(Planet)
-          @my_player.convert_fuel_to_money(PriceList.ship) if @my_player.balance < PriceList.ship
-          explorer_ship = explorer_object.ships.create(
-            :name => "#{USERNAME}-traveller",
-            :prospecting => 5,
-            :attack => 5,
-            :defense => 5,
-            :engineering => 5,
-            :location => explorer_object.location
-          )
+    #planet.closest_planets(10).where("conqueror_id <> ?", @my_player.id).select { |p| !@ships.collect(&:objective).include?(p) }.each do |expand_planet|
+    #unless @planets.include?(expand_planet)
+    # This is still a planet we need to capture
+    explorer_object = calculate_efficient_travel(planet)
+    if explorer_object.is_a?(Planet)
+      @my_player.convert_fuel_to_money(PriceList.ship) if @my_player.balance < PriceList.ship
+      explorer_ship = explorer_object.ships.create(
+        :name => "#{USERNAME}-traveller",
+        :prospecting => 5,
+        :attack => 5,
+        :defense => 5,
+        :engineering => 5,
+        :location => explorer_object.location
+      )
 
-          if explorer_ship.id?
-            @my_player.balance -= PriceList.ship
-            puts "New Ship created sending to #{expand_planet.name}"
-            explorer_ship = explorer_ship.reload
-            explorer_ship.update_attributes(:action => "ATTACK")
-            if explorer_ship.course_control((Functions.distance_between(explorer_object, expand_planet) / 2).to_i, nil, expand_planet.location)
-              explorer_ship.type = "Travelling"
-              explorer_ship.objective = expand_planet
-              #@travelling_ships << explorer_ship
-            end
+      if explorer_ship.id?
+        @my_player.balance -= PriceList.ship
+        puts "New Ship created sending to #{expand_planet.name}"
+        explorer_ship = explorer_ship.reload
+        explorer_ship.update_attributes(:action => "ATTACK")
+        if explorer_ship.course_control((Functions.distance_between(explorer_object, expand_planet) / 2).to_i, nil, expand_planet.location)
+          explorer_ship.type = "Travelling"
+          explorer_ship.objective = expand_planet
+          #@travelling_ships << explorer_ship
+        end
 
-            # Load the ship into our array
-            @ships << explorer_ship
-
-          end
-        elsif explorer_object.is_a?(Ship) && explorer_object.type == "Travelling"
-          puts "Travelling ship #{explorer_object.name} is queued to travel to #{expand_planet.name}"
-          explorer_object.queue += expand_planet
+        # Load the ship into our array
+        @ships << explorer_ship
+        @travelling_ships << explorer_ship
+        @objective_planets.delete(expand_planet)
+      end
+    elsif explorer_object.is_a?(MyShip) #&& explorer_object.type == "Travelling"
+                                        #puts "Travelling ship #{explorer_object.name} is queued to travel to #{expand_planet.name}"
+                                        #explorer_object.queue += expand_planet
+                                        # Do nothing because this ship is still travelling
+      if explorer_object.at_destination?
+        if explorer_ship.course_control((Functions.distance_between(explorer_object, expand_planet) / 2).to_i, nil, expand_planet.location)
+          explorer_ship.objective = expand_planet
+          #@travelling_ships << explorer_ship
+          @objective_planets.delete(expand_planet)
         end
       end
     end
+    #end
+    #end
   end
 
   def calculate_efficient_travel(to)
@@ -318,8 +360,8 @@ class Schemaverse
 
     # calculate the closest travelling ship and it's distance to it's target and the distance
     # from the target to our target destination
-    if @ships.select { |s| s.type.eql?("Travelling" && !s.objective.nil?) }.size < 25
-      closest_travelling_ship = @ships.select { |s| s.type.eql?("Travelling" && !s.objective.nil?) }.sort { |ts|
+    if @travelling_ships.size > 0
+      closest_travelling_ship = @travelling_ships.sort { |ts|
         (ts.distance_from_objective + Functions.distance_between(ts.objective, to)) / ts.max_speed
       }.first
     end
