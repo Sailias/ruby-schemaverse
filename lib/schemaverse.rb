@@ -19,7 +19,7 @@ class Schemaverse
     @ships.select { |s| !s.destination.blank? }.each do |ship|
       ship.objective = Planet.where("location ~= POINT(?)", ship.destination).first
       if ship.objective
-        ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
+        #ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
         if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
           # STORE travelling ships here!
           #REDIS.rpush "travelling_ships", ship.attributes.to_json
@@ -81,7 +81,7 @@ class Schemaverse
         my_ships.select { |s| !s.destination.blank? }.each do |ship|
           ship.objective = Planet.where("location ~= POINT(?)", ship.destination).first
           if ship.objective
-            ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
+            #ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
             if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
               # STORE travelling ships here!
               #REDIS.rpush "travelling_ships", ship.attributes.to_json
@@ -191,9 +191,12 @@ class Schemaverse
         end
 
         @planets.each do |planet|
-          if (planet.mine_limit - planet.ships.size) > 0
+          if (planet.mine_limit - planet.ships.size) > 0 && MyShip.count < 2001
             puts "#{planet.name} needs ships"
             create_ships_for_planet(planet)
+          else
+            puts "#{planet.name} has maxed out on miners"
+            upgrade_ships_at_planet(planet)
           end
         end
 
@@ -242,29 +245,32 @@ class Schemaverse
         @my_player.convert_fuel_to_money(PriceList.ship)
       end
 
-      # If you can build another miner at this planet, do so
-      ship = planet.ships.create(
-        :name => "#{planet.name}-miner",
-        :prospecting => 5,
-        :attack => 5,
-        :defense => 5,
-        :engineering => 5,
-        :location => planet.location
-      )
+      if @my_player.balance > PriceList.ship
 
-      if ship.id
-        @my_player.balance -= PriceList.ship
-        ship = ship.reload
-        ship.update_attributes(:action => "MINE", :action_target_id => planet.id)
-        # Load the ship into our array
-        @ships << ship
-        puts "Created a ship for #{planet.name}"
-      else
-        # Break out of this loop if the ship could not be created
-        puts "ERROR CREATING SHIP"
-        break
+        # If you can build another miner at this planet, do so
+        ship = planet.ships.create(
+          :name => "#{planet.name}-miner",
+          :prospecting => 5,
+          :attack => 5,
+          :defense => 5,
+          :engineering => 5,
+          :location => planet.location
+        )
+
+        if ship.id
+          @my_player.balance -= PriceList.ship
+          ship = ship.reload
+          ship.update_attributes(:action => "MINE", :action_target_id => planet.id)
+          # Load the ship into our array
+          @ships << ship
+          puts "Created a ship for #{planet.name}"
+        else
+          # Break out of this loop if the ship could not be created
+          puts "ERROR CREATING SHIP"
+          break
+        end
+        break if planet.ships.size >= planet.mine_limit
       end
-      break if planet.ships.size >= planet.mine_limit
     end
   end
 
@@ -276,8 +282,8 @@ class Schemaverse
           skill_remaining = @max_ship_skill - ship.total_skill
           num_upgrades = @my_player.total_resources / PriceList.prospecting
           upgrade_amount = num_upgrades > skill_remaining ? skill_remaining.to_i : num_upgrades.to_i
-          puts "upgrading ship skill by #{upgrade_amount}"
           if upgrade_amount > 0
+            puts "upgrading ship skill by #{upgrade_amount}"
             if (@planets.size > 25 || @tic > 80) && upgrade_amount / 2 > 1
               half_upgrade = (upgrade_amount / 2).to_i
               @my_player.convert_fuel_to_money((half_upgrade * PriceList.prospecting).to_i) if @my_player.balance < (half_upgrade * PriceList.prospecting)
@@ -330,13 +336,12 @@ class Schemaverse
         if explorer_ship.course_control((Functions.distance_between(explorer_object, expand_planet) / 2).to_i, nil, expand_planet.location)
           explorer_ship.type = "Travelling"
           explorer_ship.objective = expand_planet
-          #@travelling_ships << explorer_ship
+          @travelling_ships << explorer_ship
+          @objective_planets.delete(expand_planet)
         end
 
         # Load the ship into our array
         @ships << explorer_ship
-        @travelling_ships << explorer_ship
-        @objective_planets.delete(expand_planet)
       end
     elsif explorer_object.is_a?(MyShip) #&& explorer_object.type == "Travelling"
                                         #puts "Travelling ship #{explorer_object.name} is queued to travel to #{expand_planet.name}"
@@ -345,7 +350,7 @@ class Schemaverse
       if explorer_object.at_destination?
         if explorer_ship.course_control((Functions.distance_between(explorer_object, expand_planet) / 2).to_i, nil, expand_planet.location)
           explorer_ship.objective = expand_planet
-          #@travelling_ships << explorer_ship
+          @travelling_ships << explorer_ship
           @objective_planets.delete(expand_planet)
         end
       end

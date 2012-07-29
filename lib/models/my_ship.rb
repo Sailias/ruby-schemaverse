@@ -7,7 +7,6 @@ class MyShip < ActiveRecord::Base
 
   attr_accessor :type
   attr_accessor :objective
-  attr_accessor :distance_from_objective
   attr_accessor :queue
 
   def self.mine_all_planets
@@ -113,6 +112,10 @@ class MyShip < ActiveRecord::Base
         end
       end
     end
+  end
+
+  def distance_from_objective
+    Functions.distance_between(self, self.objective)
   end
 
   def at_destination?
