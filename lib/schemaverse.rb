@@ -3,14 +3,17 @@ class Schemaverse
     set_up_variables
   end
 
-  def set_up_variables
-    @my_player = MyPlayer.first
-    
+  def determine_home
     if Planet.where(:name => Planet.my_home_name).empty?
       new_home = Planet.my_planets.first
       new_home.update_attribute('name', Planet.my_home_name) if new_home
     end
     @home = Planet.home
+  end
+
+  def set_up_variables
+    @my_player = MyPlayer.first
+    determine_home
     @max_ship_skill = Functions.get_numeric_variable('MAX_SHIP_SKILL')
     @max_ship_fuel = Functions.get_numeric_variable('MAX_SHIP_FUEL')
     @ships = MyShip.all
@@ -55,6 +58,7 @@ class Schemaverse
 
       sleep(1)
       if last_tic != @tic
+        determine_home
         puts "Starting new Tic"
         last_tic = @tic
 
