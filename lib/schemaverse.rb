@@ -1,15 +1,15 @@
 class Schemaverse
   def initialize
-    if Planet.where(:name => Planet.my_home_name).empty?
-      new_home = Planet.my_planets.first
-      new_home.update_attribute('name', Planet.my_home_name) if new_home
-    end
-
     set_up_variables
   end
 
   def set_up_variables
     @my_player = MyPlayer.first
+    
+    if Planet.where(:name => Planet.my_home_name).empty?
+      new_home = Planet.my_planets.first
+      new_home.update_attribute('name', Planet.my_home_name) if new_home
+    end
     @home = Planet.home
     @max_ship_skill = Functions.get_numeric_variable('MAX_SHIP_SKILL')
     @max_ship_fuel = Functions.get_numeric_variable('MAX_SHIP_FUEL')
@@ -128,6 +128,16 @@ class Schemaverse
         #@travelling_ships = @ships.select { |s| s.type == "Travelling" }
         #@armada_ships = @ships.select { |s| s.type == "Armada" }
 
+        @planets.each do |planet|
+          if (planet.mine_limit - planet.ships.size) > 0 && MyShip.count < 2001
+            puts "#{planet.name} needs ships"
+            create_ships_for_planet(planet)
+          else
+            puts "#{planet.name} has maxed out on miners"
+            upgrade_ships_at_planet(planet)
+          end
+        end
+
         # Ships that are out of fuel that haven't reached their destination
         puts "Checking for ships travelling that are out of fuel"
         @travelling_ships.select { |s| !s.at_destination? && s.current_fuel < (s.max_fuel / 2) }.each do |ship|
@@ -138,24 +148,24 @@ class Schemaverse
           end
         end
 
-        if @travelling_ships.select { |s| s.at_destination? }.size > 0 || @travelling_ships.size <= 10
-          (@travelling_ships.select { |s| s.at_destination? }.size + (10 - @travelling_ships.size)).times do |i|
+        if @travelling_ships.select { |s| s.at_destination? }.size > 0 || @travelling_ships.size <= @tic
+          (@travelling_ships.select { |s| s.at_destination? }.size + (@tic - @travelling_ships.size)).times do |i|
             expand_to_new_planet(@objective_planets[i])
           end
         end
 
         # Start killing of ships at planets that in my interior
-        #@planets.each do |planet|
-        #  conquer_planet(planet)
-        #
-        #  if planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.empty?
-        #    planet.ships.each do |ship|
-        #      # Have all the ships at the planet destroy themselves.
-        #      # TODO, just put these ships into trade!
-        #      ship.commence_attack(ship.id)
-        #    end
-        #  end
-        #end
+        @planets.each do |planet|
+          #  conquer_planet(planet)
+          #
+          if planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.empty? && @ships.size >= 2000
+            planet.ships.each do |ship|
+              # Have all the ships at the planet destroy themselves.
+              # TODO, just put these ships into trade!
+              ship.commence_attack(ship.id)
+            end
+          end
+        end
 
         # handle all travelling ships
         @travelling_ships.each do |travelling_ship|
@@ -188,16 +198,6 @@ class Schemaverse
           #  puts "Processing queue"
           #  travelling_ship.process_next_queue_item
           #end
-        end
-
-        @planets.each do |planet|
-          if (planet.mine_limit - planet.ships.size) > 0 && MyShip.count < 2001
-            puts "#{planet.name} needs ships"
-            create_ships_for_planet(planet)
-          else
-            puts "#{planet.name} has maxed out on miners"
-            upgrade_ships_at_planet(planet)
-          end
         end
 
         #@armada_ships.each do |armada_ship|
@@ -241,36 +241,38 @@ class Schemaverse
 
   def create_ships_for_planet(planet)
     (planet.mine_limit - planet.ships.size).times do
+      next if @my_player.total_resources < PriceList.ship
       if @my_player.balance < PriceList.ship
         @my_player.convert_fuel_to_money(PriceList.ship)
       end
 
-      if @my_player.balance > PriceList.ship
+      # If you can build another miner at this planet, do so
+      ship = planet.ships.create(
+        :name => "#{planet.name}-miner",
+        :prospecting => 5,
+        :attack => 5,
+        :defense => 5,
+        :engineering => 5,
+        :location => planet.location
+      )
 
-        # If you can build another miner at this planet, do so
-        ship = planet.ships.create(
-          :name => "#{planet.name}-miner",
-          :prospecting => 5,
-          :attack => 5,
-          :defense => 5,
-          :engineering => 5,
-          :location => planet.location
-        )
-
-        if ship.id
-          @my_player.balance -= PriceList.ship
-          ship = ship.reload
+      if ship.id
+        @my_player.balance -= PriceList.ship
+        ship = ship.reload
+        begin
           ship.update_attributes(:action => "MINE", :action_target_id => planet.id)
-          # Load the ship into our array
-          @ships << ship
-          puts "Created a ship for #{planet.name}"
-        else
-          # Break out of this loop if the ship could not be created
-          puts "ERROR CREATING SHIP"
-          break
+        rescue Exception => e
+          puts e.message
         end
-        break if planet.ships.size >= planet.mine_limit
+        # Load the ship into our array
+        @ships << ship
+        puts "Created a ship for #{planet.name}"
+      else
+        # Break out of this loop if the ship could not be created
+        puts "ERROR CREATING SHIP"
+        break
       end
+      break if planet.ships.size >= planet.mine_limit
     end
   end
 
@@ -344,13 +346,15 @@ class Schemaverse
         @ships << explorer_ship
       end
     elsif explorer_object.is_a?(MyShip) #&& explorer_object.type == "Travelling"
-                                        #puts "Travelling ship #{explorer_object.name} is queued to travel to #{expand_planet.name}"
-                                        #explorer_object.queue += expand_planet
-                                        # Do nothing because this ship is still travelling
-      if explorer_object.at_destination?
-        if explorer_ship.course_control((Functions.distance_between(explorer_object, expand_planet) / 2).to_i, nil, expand_planet.location)
-          explorer_ship.objective = expand_planet
-          @travelling_ships << explorer_ship
+      #puts "Travelling ship #{explorer_object.name} is queued to travel to #{expand_planet.name}"
+      #explorer_object.queue += expand_planet
+      # Do nothing because this ship is still travelling
+      #puts "The closest object to #{expand_planet.name} is the ship #{explorer_object.id}:#{explorer_object.name}"
+      if explorer_object.at_destination? && (@planets.include?(explorer_object.objective) || explorer_object.ships_in_range.size > 0)
+        puts "The ship #{explorer_object.name} is now travelling to #{expand_planet.name}"
+        if explorer_object.course_control((Functions.distance_between(explorer_object, expand_planet) / 2).to_i, nil, expand_planet.location)
+          explorer_object.objective = expand_planet
+          explorer_object.update_attributes(:action => "ATTACK", :action_target_id => nil)
           @objective_planets.delete(expand_planet)
         end
       end
@@ -371,7 +375,8 @@ class Schemaverse
       }.first
     end
 
-    vals = {closest_planet => Functions.distance_between(closest_planet, to) / (PriceList.ship + Schemaverse.available_income(@ships))} if @ships.size < 2000
+    vals = {}
+    vals.merge!(closest_planet => Functions.distance_between(closest_planet, to) / (PriceList.ship + Schemaverse.available_income(@ships))) if @ships.size < 2000
     vals.merge!(closest_travelling_ship => Functions.distance_between(closest_travelling_ship.objective, to) / (PriceList.ship + Schemaverse.available_income(@ships))) if closest_travelling_ship
 
     unless vals.empty?
