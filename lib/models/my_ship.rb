@@ -66,11 +66,13 @@ class MyShip < ActiveRecord::Base
       upgrade_amount_available = max_speed_allowed - self.max_speed
       #available_funds = Schemaverse.estimated_income(ships) - (Schemaverse.fuel_needed_for_next_tic(ships))
       #upgrade_amount = available_funds <= upgrade_amount_available * PriceList.max_speed ? available_funds / PriceList.max_speed : upgrade_amount_available
-      upgrade_amount = upgrade_amount_available / 3
 
       player = MyPlayer.first
 
-      if upgrade_amount.to_i > 0 && upgrade_amount * PriceList.max_speed <= player.total_resources
+      upgrade_amount = upgrade_amount_available / 3
+      upgrade_amount = player.total_resources / 2 / PriceList.max_speed if upgrade_amount * PriceList.max_speed > player.total_resources
+
+      if upgrade_amount.to_i > 0
         MyPlayer.first.convert_fuel_to_money(upgrade_amount.to_i * PriceList.max_speed) if player.balance < upgrade_amount.to_i * PriceList.max_speed
         if self.upgrade('MAX_SPEED', upgrade_amount.to_i)
           puts "upgrading #{self.name} speed #{upgrade_amount}"
@@ -83,16 +85,18 @@ class MyShip < ActiveRecord::Base
   def modify_fuel(ships)
     max_fuel_allowed = Functions.get_numeric_variable('MAX_SHIP_FUEL')
     # Don't upgrade if we can reach our destination in 3 tics or less
-    if (self.distance_from_objective / self.speed) > 3 && self.max_fuel < max_fuel_allowed
+    if (self.distance_from_objective / self.max_speed) > 3 && self.max_fuel < max_fuel_allowed
       upgrade_amount_available = max_fuel_allowed - self.max_fuel
       upgrade_amount_available = self.max_speed if self.max_speed < upgrade_amount_available
       #available_funds = Schemaverse.estimated_income(ships) - Schemaverse.fuel_needed_for_next_tic(ships)
       #upgrade_amount = available_funds <= upgrade_amount_available * PriceList.max_fuel ? available_funds / PriceList.max_fuel : upgrade_amount_available
-      upgrade_amount = upgrade_amount_available / 3
 
       player = MyPlayer.first
 
-      if upgrade_amount.to_i > 0 && upgrade_amount * PriceList.max_fuel < player.total_resources
+      upgrade_amount = upgrade_amount_available / 3
+      upgrade_amount = player.total_resources / 2 / PriceList.max_speed if upgrade_amount * PriceList.max_speed > player.total_resources
+
+      if upgrade_amount.to_i > 0
         MyPlayer.first.convert_fuel_to_money(upgrade_amount.to_i * PriceList.max_fuel) if player.balance < upgrade_amount.to_i * PriceList.max_fuel
         if self.upgrade('MAX_FUEL', upgrade_amount.to_i)
           puts "upgrading #{self.name} fuel #{upgrade_amount}"

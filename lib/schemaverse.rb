@@ -56,8 +56,8 @@ class Schemaverse
         set_up_variables
       end
 
-      sleep(1)
       if last_tic != @tic
+        #sleep(45) # Wait 45 seconds into each round for the data to propagate
         determine_home
         puts "Starting new Tic"
         last_tic = @tic
@@ -152,8 +152,8 @@ class Schemaverse
           end
         end
 
-        if @travelling_ships.select { |s| s.at_destination? }.size > 0 || @travelling_ships.size <= @tic
-          (@travelling_ships.select { |s| s.at_destination? }.size + (@tic - @travelling_ships.size)).times do |i|
+        if @travelling_ships.select { |s| s.at_destination? }.size > 0 || @travelling_ships.size <= (@tic / 3).to_i
+          (@travelling_ships.select { |s| s.at_destination? }.size + ((@tic / 3).to_i - @travelling_ships.size)).times do |i|
             expand_to_new_planet(@objective_planets[i])
           end
         end
@@ -172,7 +172,7 @@ class Schemaverse
         end
 
         # handle all travelling ships
-        @travelling_ships.each do |travelling_ship|
+        @travelling_ships.sort_by(&:distance_from_objective).each do |travelling_ship|
           if travelling_ship.at_destination?
             if travelling_ship.objective.is_a?(Planet)
               if travelling_ship.ships_in_range.blank?
