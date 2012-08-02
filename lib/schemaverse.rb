@@ -23,11 +23,11 @@ class Schemaverse
       ship.objective = Planet.where("location ~= POINT(?)", ship.destination).first
       if ship.objective
         #ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
-        if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
+        #if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
           # STORE travelling ships here!
           #REDIS.rpush "travelling_ships", ship.attributes.to_json
           @travelling_ships << ship
-        end
+        #end
       end
     end
 
@@ -86,11 +86,11 @@ class Schemaverse
           ship.objective = Planet.where("location ~= POINT(?)", ship.destination).first
           if ship.objective
             #ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
-            if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
+            #if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
               # STORE travelling ships here!
               #REDIS.rpush "travelling_ships", ship.attributes.to_json
               @travelling_ships << ship
-            end
+            #end
           end
         end
 
