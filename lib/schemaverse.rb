@@ -181,7 +181,7 @@ class Schemaverse
         @travelling_ships.sort_by(&:distance_from_objective).each do |travelling_ship|
           if travelling_ship.at_destination?
             if travelling_ship.objective.is_a?(Planet)
-              if @planets.include?(travelling_ship.objective)
+              if @planets.include?(travelling_ship.objective) || travelling_ship.ships_in_range.size > 0
                 # Lets move this ship to another planet!
                 new_planet = @objective_planets.sort_by { |p| Functions.distance_between(p, travelling_ship) }.first
                 if travelling_ship.course_control(travelling_ship.max_speed, nil, new_planet.location)
