@@ -24,9 +24,9 @@ class Schemaverse
       if ship.objective
         #ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
         #if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
-          # STORE travelling ships here!
-          #REDIS.rpush "travelling_ships", ship.attributes.to_json
-          @travelling_ships << ship
+        # STORE travelling ships here!
+        #REDIS.rpush "travelling_ships", ship.attributes.to_json
+        @travelling_ships << ship
         #end
       end
     end
@@ -87,9 +87,9 @@ class Schemaverse
           if ship.objective
             #ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
             #if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
-              # STORE travelling ships here!
-              #REDIS.rpush "travelling_ships", ship.attributes.to_json
-              @travelling_ships << ship
+            # STORE travelling ships here!
+            #REDIS.rpush "travelling_ships", ship.attributes.to_json
+            @travelling_ships << ship
             #end
           end
         end
@@ -132,7 +132,7 @@ class Schemaverse
         #@travelling_ships = @ships.select { |s| s.type == "Travelling" }
         #@armada_ships = @ships.select { |s| s.type == "Armada" }
 
-        @planets.each do |planet|
+        @planets.sort_by{|p| Functions.distance_between(p, @home)}.reverse.each do |planet|
           if (planet.mine_limit - planet.ships.size) > 0 && MyShip.count < 2001
             puts "#{planet.name} needs ships"
             create_ships_for_planet(planet)
@@ -163,10 +163,16 @@ class Schemaverse
           #  conquer_planet(planet)
           #
           if planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.empty? && @ships.size >= 2000
-            planet.ships.each do |ship|
-              # Have all the ships at the planet destroy themselves.
-              # TODO, just put these ships into trade!
-              ship.commence_attack(ship.id)
+            all_ships = planet.ships
+            unless all_ships.empty?
+              ship_to_kill = all_ships.pop
+              puts "Killing #{ship_to_kill.name}"
+              all_ships.each do |ship|
+                # Have all the ships at the planet destroy themselves.
+                # TODO, just put these ships into trade!
+                ship.commence_attack(ship_to_kill.id)
+                puts "#{ship.id}:#{ship.name} is killing #{ship_to_kill.id}:#{ship_to_kill.name}"
+              end
             end
           end
         end
@@ -175,15 +181,24 @@ class Schemaverse
         @travelling_ships.sort_by(&:distance_from_objective).each do |travelling_ship|
           if travelling_ship.at_destination?
             if travelling_ship.objective.is_a?(Planet)
-              if travelling_ship.ships_in_range.blank?
-                puts "#{travelling_ship.name} is at the location. Mining#{travelling_ship.objective.name}"
-                travelling_ship.update_attributes(:action => "MINE", :action_target_id => travelling_ship.objective.id)
+              if @planets.include?(travelling_ship.objective)
+                # Lets move this ship to another planet!
+                new_planet = @objective_planets.sort_by { |p| Functions.distance_between(p, travelling_ship) }.first
+                if travelling_ship.course_control(travelling_ship.max_speed, nil, new_planet.location)
+                  travelling_ship.objective = new_planet
+                  @objective_planets.delete(new_planet)
+                end
               else
-                begin
-                  #call_for_reinforcements(travelling_ship) if !travelling_ship.objective.conqueror_id.eql?(@my_player.id) && (@ships - [travelling_ship]).select { |s| s.destination == travelling_ship.destination }.empty?
-                  travelling_ship.update_attributes(:action => "ATTACK", :action_target_id => nil)
-                rescue Exception => e
-                  puts e.message
+                if travelling_ship.ships_in_range.blank?
+                  puts "#{travelling_ship.name} is at the location. Mining#{travelling_ship.objective.name}"
+                  travelling_ship.update_attributes(:action => "MINE", :action_target_id => travelling_ship.objective.id)
+                else
+                  begin
+                    #call_for_reinforcements(travelling_ship) if !travelling_ship.objective.conqueror_id.eql?(@my_player.id) && (@ships - [travelling_ship]).select { |s| s.destination == travelling_ship.destination }.empty?
+                    travelling_ship.update_attributes(:action => "ATTACK", :action_target_id => nil)
+                  rescue Exception => e
+                    puts e.message
+                  end
                 end
               end
             else
@@ -350,10 +365,10 @@ class Schemaverse
         @ships << explorer_ship
       end
     elsif explorer_object.is_a?(MyShip) #&& explorer_object.type == "Travelling"
-      #puts "Travelling ship #{explorer_object.name} is queued to travel to #{expand_planet.name}"
-      #explorer_object.queue += expand_planet
-      # Do nothing because this ship is still travelling
-      #puts "The closest object to #{expand_planet.name} is the ship #{explorer_object.id}:#{explorer_object.name}"
+                                        #puts "Travelling ship #{explorer_object.name} is queued to travel to #{expand_planet.name}"
+                                        #explorer_object.queue += expand_planet
+                                        # Do nothing because this ship is still travelling
+                                        #puts "The closest object to #{expand_planet.name} is the ship #{explorer_object.id}:#{explorer_object.name}"
       if explorer_object.at_destination? && (@planets.include?(explorer_object.objective) || explorer_object.ships_in_range.size > 0)
         puts "The ship #{explorer_object.name} is now travelling to #{expand_planet.name}"
         if explorer_object.course_control((Functions.distance_between(explorer_object, expand_planet) / 2).to_i, nil, expand_planet.location)

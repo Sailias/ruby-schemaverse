@@ -85,7 +85,7 @@ class MyShip < ActiveRecord::Base
   def modify_fuel(ships)
     max_fuel_allowed = Functions.get_numeric_variable('MAX_SHIP_FUEL')
     # Don't upgrade if we can reach our destination in 3 tics or less
-    if (self.distance_from_objective / self.max_speed) > 3 && self.max_fuel < max_fuel_allowed
+    if (self.max_speed / self.max_fuel) > 3 && self.max_fuel < max_fuel_allowed
       upgrade_amount_available = max_fuel_allowed - self.max_fuel
       upgrade_amount_available = self.max_speed if self.max_speed < upgrade_amount_available
       #available_funds = Schemaverse.estimated_income(ships) - Schemaverse.fuel_needed_for_next_tic(ships)
