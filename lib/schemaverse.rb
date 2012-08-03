@@ -131,6 +131,13 @@ class Schemaverse
 
         #@travelling_ships = @ships.select { |s| s.type == "Travelling" }
         #@armada_ships = @ships.select { |s| s.type == "Armada" }
+        
+		if @travelling_ships.select { |s| s.at_destination? }.size > 0 || @travelling_ships.size <= (@tic / 3).to_i
+          (@travelling_ships.select { |s| s.at_destination? }.size + ((@tic / 3).to_i - @travelling_ships.size)).times do |i|
+            expand_to_new_planet(@objective_planets[i])
+          end
+        end
+        
 
         @planets.sort_by{|p| Functions.distance_between(p, @home)}.reverse.each do |planet|
           if (planet.mine_limit - planet.ships.size) > 0 && MyShip.count < 2001
@@ -152,12 +159,6 @@ class Schemaverse
           end
         end
 
-        if @travelling_ships.select { |s| s.at_destination? }.size > 0 || @travelling_ships.size <= (@tic / 3).to_i
-          (@travelling_ships.select { |s| s.at_destination? }.size + ((@tic / 3).to_i - @travelling_ships.size)).times do |i|
-            expand_to_new_planet(@objective_planets[i])
-          end
-        end
-
         # Start killing of ships at planets that in my interior
         @planets.each do |planet|
           #  conquer_planet(planet)
@@ -170,8 +171,13 @@ class Schemaverse
               all_ships.each do |ship|
                 # Have all the ships at the planet destroy themselves.
                 # TODO, just put these ships into trade!
-                ship.commence_attack(ship_to_kill.id)
-                puts "#{ship.id}:#{ship.name} is killing #{ship_to_kill.id}:#{ship_to_kill.name}"
+                if ship.attack < 50
+				  ship.commence_attack(ship_to_kill.id)
+                  puts "#{ship.id}:#{ship.name} is killing #{ship_to_kill.id}:#{ship_to_kill.name}"
+                else
+                  ship.commence_attack(ship.id)
+                  puts "#{ship.id}:#{ship.name} is killing itself"
+                end
               end
             end
           end
