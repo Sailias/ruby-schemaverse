@@ -75,6 +75,12 @@ class Schemaverse
 
         @lost_planets += @planets - my_planets
         @planets = my_planets
+        
+        @lost_planets.each do |lost_planet|
+			@objective_planets.unshift(lost_planet)
+        end
+        
+        @lost_planets = []
 
         my_ships = MyShip.all
         new_ships = my_ships - @ships
@@ -110,7 +116,7 @@ class Schemaverse
         # Add the planet back to the start of our objective planets
         @lost_ships.collect(&:objective).compact.select { |o| o.is_a?(Planet) && !@planets.include?(o) }.each do |planet|
           @objective_planets.unshift(planet) unless @objective_planets.include?(planet)
-        end
+        end        
 
         # Remove all destroyed ships from our travelling ships
         #@lost_ships.each do |ship|
@@ -132,15 +138,15 @@ class Schemaverse
         #@travelling_ships = @ships.select { |s| s.type == "Travelling" }
         #@armada_ships = @ships.select { |s| s.type == "Armada" }
         
-		if @travelling_ships.select { |s| s.at_destination? }.size > 0 || @travelling_ships.size <= (@tic / 3).to_i
-          (@travelling_ships.select { |s| s.at_destination? }.size + ((@tic / 3).to_i - @travelling_ships.size)).times do |i|
+		if @travelling_ships.select { |s| s.at_destination? }.size > 0 || @travelling_ships.size <= @tic
+          (@travelling_ships.select { |s| s.at_destination? }.size + (@tic - @travelling_ships.size)).times do |i|
             expand_to_new_planet(@objective_planets[i])
           end
         end
         
 
         @planets.sort_by{|p| Functions.distance_between(p, @home)}.reverse.each do |planet|
-          if (planet.mine_limit - planet.ships.size) > 0 && MyShip.count < 2001
+          if (planet.mine_limit - planet.ships.size) > 0 && MyShip.count < 2001 && !planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.empty?
             puts "#{planet.name} needs ships"
             create_ships_for_planet(planet)
           else
@@ -165,18 +171,15 @@ class Schemaverse
           #
           if planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.empty? && @ships.size >= 2000
             all_ships = planet.ships
-            unless all_ships.empty?
-              ship_to_kill = all_ships.pop
-              puts "Killing #{ship_to_kill.name}"
+            unless all_ships.empty?              
               all_ships.each do |ship|
+                puts "Killing #{ship.name}"
                 # Have all the ships at the planet destroy themselves.
                 # TODO, just put these ships into trade!
-                if ship.attack < 50
-				  ship.commence_attack(ship_to_kill.id)
-                  puts "#{ship.id}:#{ship.name} is killing #{ship_to_kill.id}:#{ship_to_kill.name}"
-                else
-                  ship.commence_attack(ship.id)
-                  puts "#{ship.id}:#{ship.name} is killing itself"
+                begin
+					ship.destroy
+                rescue Exception => e
+					puts e.message
                 end
               end
             end

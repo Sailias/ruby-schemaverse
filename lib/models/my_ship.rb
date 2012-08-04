@@ -104,7 +104,7 @@ class MyShip < ActiveRecord::Base
       end
 
     end
-  end
+  end  
 
   def process_next_queue_item
     unless self.queue.nil?
