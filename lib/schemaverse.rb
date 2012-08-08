@@ -18,24 +18,20 @@ class Schemaverse
     @max_ship_fuel = Functions.get_numeric_variable('MAX_SHIP_FUEL')
     @ships = MyShip.all
     @travelling_ships = []
+    @armada_ships = []
 
     @ships.select { |s| !s.destination.blank? }.each do |ship|
       ship.objective = Planet.where("location ~= POINT(?)", ship.destination).first
-      if ship.objective
-        #ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
-        #if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
-        # STORE travelling ships here!
-        #REDIS.rpush "travelling_ships", ship.attributes.to_json
-        @travelling_ships << ship
-        #end
-      end
     end
 
-    @armada_ships = []
+    @travelling_ships = @ships.select{|s| s.objective && !s.name.include?("armada")}
+    @armada_ships = @ships.select{|s| s.objective && s.name.include?("armada")}
+
     @lost_ships = []
     @my_planets = Planet.my_planets.all
     @planets = []
     @objective_planets = []
+    @armada_planets = []
     @lost_planets = []
     @tic = 0
 
@@ -47,12 +43,27 @@ class Schemaverse
 
   def play
     last_tic = 0
+    last_round = nil
     set_up_variables
 
     while true
       # Adding cool names to my planets
       @tic = TicSeq.first.last_value
-      if @tic == 1
+      @round = RoundSeq.first.last_value
+      last_round ||= @round
+
+      unless last_round.eql?(@round)
+        # A NEW ROUND HAS BEGUN!!
+        # RESET EVERYTHING
+
+        # Destroy all but 30 ships if there are some already made
+        puts "A new round has begun"
+        (MyShip.all - MyShip.first(30)).destroy_all
+
+        determine_home
+
+        # Make all existing ships mine home
+        MyShip.all.update_attribute("action_target_id", @home.id)
         set_up_variables
       end
 
@@ -75,11 +86,11 @@ class Schemaverse
 
         @lost_planets += @planets - my_planets
         @planets = my_planets
-        
+
         @lost_planets.each do |lost_planet|
-			@objective_planets.unshift(lost_planet)
+          @armada_planets.unshift(lost_planet)
         end
-        
+
         @lost_planets = []
 
         my_ships = MyShip.all
@@ -91,66 +102,27 @@ class Schemaverse
         my_ships.select { |s| !s.destination.blank? }.each do |ship|
           ship.objective = Planet.where("location ~= POINT(?)", ship.destination).first
           if ship.objective
-            #ship.distance_from_objective = Functions.distance_between(ship, ship.objective)
-            #if !ship.at_destination? || (ship.at_destination? && ship.objective.conqueror_id != @my_player.id)
-            # STORE travelling ships here!
-            #REDIS.rpush "travelling_ships", ship.attributes.to_json
             @travelling_ships << ship
-            #end
           end
         end
-
-
-        # Update all my travelling ships
-        #my_ships.each do |ship|
-        #  REDIS.lrange('travelling_ships', 0, REDIS.llen('travelling_ships')).each_with_index do |redis_ship, i|
-        #    attrs = JSON.parse redis_ship
-        #    if ship.id == redis_ship['id']
-        #      # We found our ship in redis
-        #      REDIS.lset "travelling_ships", i, ship.attributes.to_json
-        #      @travelling_ships << ship
-        #    end
-        #  end
-        #end
 
         # Add the planet back to the start of our objective planets
         @lost_ships.collect(&:objective).compact.select { |o| o.is_a?(Planet) && !@planets.include?(o) }.each do |planet|
-          @objective_planets.unshift(planet) unless @objective_planets.include?(planet)
-        end        
+          @objective_planets.unshift(planet) unless @objective_planets.include?(planet) || @planets.include?(planet)
+        end
 
-        # Remove all destroyed ships from our travelling ships
-        #@lost_ships.each do |ship|
-        #  REDIS.lrange('travelling_ships', 0, REDIS.llen('travelling_ships')).each_with_index do |redis_ship, i|
-        #    attrs = JSON.parse redis_ship
-        #    if ship.id == redis_ship['id']
-        #      # We found our ship in redis AND IT HAS BEEN DESTROYED!!
-        #      REDIS.lrem "travelling_ships", 0, redis_ship
-        #      if ship.objective
-        #        planet = ship.objective
-        #        if @travelling_ships.select{|s| s.objective}
-        #
-        #        end
-        #      end
-        #    end
-        #  end
-        #end
-
-        #@travelling_ships = @ships.select { |s| s.type == "Travelling" }
-        #@armada_ships = @ships.select { |s| s.type == "Armada" }
-        
-		if @travelling_ships.select { |s| s.at_destination? }.size > 0 || @travelling_ships.size <= @tic
-          (@travelling_ships.select { |s| s.at_destination? }.size + (@tic - @travelling_ships.size)).times do |i|
+        # Expand to new planets based on tic
+        if @travelling_ships.size <= @tic
+          (@tic - @travelling_ships.size).times do |i|
             expand_to_new_planet(@objective_planets[i])
           end
         end
-        
 
-        @planets.sort_by{|p| Functions.distance_between(p, @home)}.reverse.each do |planet|
-          if (planet.mine_limit - planet.ships.size) > 0 && MyShip.count < 2001 && !planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.empty?
+        @planets.sort_by { |p| Functions.distance_between(p, @home) }.reverse.each do |planet|
+          if (planet.mine_limit - planet.ships.size) > 0 && MyShip.count < 1700 && !planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.empty?
             puts "#{planet.name} needs ships"
             create_ships_for_planet(planet)
           else
-            puts "#{planet.name} has maxed out on miners"
             upgrade_ships_at_planet(planet)
           end
         end
@@ -165,21 +137,79 @@ class Schemaverse
           end
         end
 
+        puts "Checking for armada travelling that are out of fuel"
+        @armada_ships.select { |s| !s.at_destination? && s.current_fuel < (s.max_fuel / 2) }.each do |ship|
+          if @my_player.fuel_reserve > ship.max_fuel
+            puts "Refueling #{ship.name}"
+            ship.refuel_ship
+            @my_player.fuel_reserve -= ship.max_fuel - ship.current_fuel
+          end
+        end
+
         # Start killing of ships at planets that in my interior
         @planets.each do |planet|
           #  conquer_planet(planet)
           #
           if planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.empty? && @ships.size >= 2000
             all_ships = planet.ships
-            unless all_ships.empty?              
+            unless all_ships.empty?
               all_ships.each do |ship|
                 puts "Killing #{ship.name}"
                 # Have all the ships at the planet destroy themselves.
                 # TODO, just put these ships into trade!
                 begin
-					ship.destroy
+                  ship.destroy
                 rescue Exception => e
-					puts e.message
+                  puts e.message
+                end
+              end
+            end
+          end
+        end
+
+        if @armada_ships.group_by(&:objective).size < 10 && @ships.size <= 1970
+          # Create another group of amada ships if you can
+          cost_of_attack_fleet = ((PriceList.ship) +
+            (PriceList.defense * 200) +
+            (PriceList.attack * 200) +
+            (Functions.get_numeric_variable('MAX_SHIP_FUEL') / 5) +
+            (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 5)
+          ) * 30
+
+          if @my_player.total_resources > cost_of_attack_fleet
+
+            planet_to_conquer = @armada_planets.first
+            if planet_to_conquer
+              closest_planet_to_objective = planet_to_conquer.closest_planets(1).my_planets.first
+              30.times do
+                armada_ship = MyShip.create(
+                  :name => "#{USERNAME}-armada",
+                  :prospecting => 5,
+                  :attack => 5,
+                  :defense => 5,
+                  :engineering => 5,
+                  :location => closest_planet_to_objective.location
+                )
+
+                if armada_ship.id?
+                  puts "New ARMADA SHIP"
+                  armada_ship = armada_ship.reload
+                  armada_ship.update_attributes(:action => "ATTACK")
+                  armada_ship.upgrade("ATTACK", 200)
+                  armada_ship.upgrade("DEFENSE", 200)
+                  armada_ship.upgrade("MAX_FUEL", (Functions.get_numeric_variable('MAX_SHIP_FUEL') / 5))
+                  armada_ship.upgrade("MAX_SPEED", (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 5))
+                  @my_player.balance -= cost_of_attack_fleet
+
+                  if armada_ship.course_control((Functions.distance_between(armada_ship, planet_to_conquer) / 2).to_i, nil, planet_to_conquer.location)
+
+                    armada_ship.objective = planet_to_conquer
+                    @armada_ships << armada_ship
+                    @armada_planets.delete(planet_to_conquer)
+                  end
+
+                  # Load the ship into our array
+                  @ships << armada_ship
                 end
               end
             end
@@ -197,18 +227,15 @@ class Schemaverse
                   travelling_ship.objective = new_planet
                   @objective_planets.delete(new_planet)
                 end
-              else
-                if travelling_ship.ships_in_range.blank?
-                  puts "#{travelling_ship.name} is at the location. Mining#{travelling_ship.objective.name}"
-                  travelling_ship.update_attributes(:action => "MINE", :action_target_id => travelling_ship.objective.id)
-                else
-                  begin
-                    #call_for_reinforcements(travelling_ship) if !travelling_ship.objective.conqueror_id.eql?(@my_player.id) && (@ships - [travelling_ship]).select { |s| s.destination == travelling_ship.destination }.empty?
-                    travelling_ship.update_attributes(:action => "ATTACK", :action_target_id => nil)
-                  rescue Exception => e
-                    puts e.message
-                  end
+
+                if travelling_ship.ships_in_range.size > 0
+                  # lets do something here to capture this planet
+                  @armada_planets << travelling_ship.objective
                 end
+
+              else
+                puts "#{travelling_ship.name} is at the location. Mining#{travelling_ship.objective.name}"
+                travelling_ship.update_attributes(:action => "MINE", :action_target_id => travelling_ship.objective.id)
               end
             else
               # Something else needs to happen here
@@ -228,20 +255,29 @@ class Schemaverse
           #end
         end
 
-        #@armada_ships.each do |armada_ship|
-        #  unless armada_ship.at_destination?
-        #    begin
-        #      armada_ship.modify_speed(@ships)
-        #      armada_ship.modify_fuel(@ships)
-        #    rescue Exception => e
-        #      puts e.message
-        #    end
-        #  else
-        #    if armada_ship.ships_in_range.empty?
-        #      travelling_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
-        #    end
-        #  end
-        #end
+        @armada_ships.group_by(&:objective).each do |armada_ship_grp|
+          if armada_ship_grp.first.at_destination?
+            if armada_ship_grp.first.ships_in_range.empty?
+              armada_ship_grp.last.each do |armada_ship|
+                armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
+              end
+            end
+
+            if @planets.include?(armada_ship_grp.first.objective)
+              # MISSION COMPLETE!! MOVE ON
+
+              new_armada_planet = @armada_planets.sort_by { |p| Functions.distance_between(p, armada_ship_grp.first) }.first
+              if new_armada_planet
+                armada_ship_grp.last.each do |armada_ship|
+                  if armada_ship.course_control(armada_ship.max_speed, nil, new_armada_planet.location)
+                    armada_ship.objective = new_armada_planet
+                  end
+                end
+                @armada_planets.delete(new_armada_planet)
+              end
+            end
+          end
+        end
 
         puts "Checking for ships to attack"
         MyShip.joins(:ships_in_range).each do |attack_ship|
@@ -261,7 +297,6 @@ class Schemaverse
     if planet.ships.size < planet.mine_limit && MyShip.count < 2001
       create_ships_for_planet(planet)
     else
-      puts "#{planet.name} has maxed out on miners"
       upgrade_ships_at_planet(planet)
       expand_to_new_planet(planet)
     end
@@ -404,7 +439,7 @@ class Schemaverse
     end
 
     vals = {}
-    vals.merge!(closest_planet => Functions.distance_between(closest_planet, to) / (PriceList.ship + Schemaverse.available_income(@ships))) if @ships.size < 2000
+    vals.merge!(closest_planet => Functions.distance_between(closest_planet, to) / (PriceList.ship + Schemaverse.available_income(@ships))) if @ships.size < 1700
     vals.merge!(closest_travelling_ship => Functions.distance_between(closest_travelling_ship.objective, to) / (PriceList.ship + Schemaverse.available_income(@ships))) if closest_travelling_ship
 
     unless vals.empty?
