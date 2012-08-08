@@ -58,7 +58,9 @@ class Schemaverse
 
         # Destroy all but 30 ships if there are some already made
         puts "A new round has begun"
-        (MyShip.all - MyShip.first(30)).destroy_all
+        (MyShip.all - MyShip.first(30)).each do |ship|
+          ship.destroy
+        end
 
         determine_home
 
