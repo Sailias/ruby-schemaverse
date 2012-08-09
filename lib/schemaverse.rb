@@ -178,8 +178,8 @@ class Schemaverse
             (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 10)
           ) * 30
 
-          if @my_player.total_resources > cost_of_attack_fleet
-
+          if @my_player.total_resources >= cost_of_attack_fleet
+			@armada_planets << @objective_planets.first
             planet_to_conquer = @armada_planets.first
             if planet_to_conquer
               closest_planet_to_objective = planet_to_conquer.closest_planets(1).my_planets.first
@@ -199,8 +199,8 @@ class Schemaverse
                   armada_ship.update_attributes(:action => "ATTACK")
                   armada_ship.upgrade("ATTACK", 200)
                   armada_ship.upgrade("DEFENSE", 200)
-                  armada_ship.upgrade("MAX_FUEL", (Functions.get_numeric_variable('MAX_SHIP_FUEL') / 10))
-                  armada_ship.upgrade("MAX_SPEED", (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 10))
+                  armada_ship.upgrade("MAX_FUEL", (Functions.get_numeric_variable('MAX_SHIP_FUEL') / 10).to_i)
+                  armada_ship.upgrade("MAX_SPEED", (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 10).to_i)
                   @my_player.balance -= cost_of_attack_fleet
 
                   if armada_ship.course_control((Functions.distance_between(armada_ship, planet_to_conquer) / 2).to_i, nil, planet_to_conquer.location)
@@ -258,14 +258,14 @@ class Schemaverse
         end
 
         @armada_ships.group_by(&:objective).each do |armada_ship_grp|
-          if armada_ship_grp.first.at_destination?
-            if armada_ship_grp.first.ships_in_range.empty?
+          if armada_ship_grp.last[0].at_destination?
+            if armada_ship_grp.last[0].ships_in_range.empty?
               armada_ship_grp.last.each do |armada_ship|
                 armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
               end
             end
 
-            if @planets.include?(armada_ship_grp.first.objective)
+            if @planets.include?(armada_ship_grp.first)
               # MISSION COMPLETE!! MOVE ON
 
               new_armada_planet = @armada_planets.sort_by { |p| Functions.distance_between(p, armada_ship_grp.first) }.first
