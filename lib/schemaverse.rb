@@ -114,8 +114,8 @@ class Schemaverse
         end
 
         # Expand to new planets based on tic
-        if @travelling_ships.size <= @tic
-          (@tic - @travelling_ships.size).times do |i|
+        if @travelling_ships.size <= @tic / 3
+          ((@tic / 3) - @travelling_ships.size).to_i.times do |i|
             expand_to_new_planet(@objective_planets[i])
           end
         end
