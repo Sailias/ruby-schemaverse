@@ -174,8 +174,8 @@ class Schemaverse
           cost_of_attack_fleet = ((PriceList.ship) +
             (PriceList.defense * 200) +
             (PriceList.attack * 200) +
-            (Functions.get_numeric_variable('MAX_SHIP_FUEL') / 5) +
-            (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 5)
+            (Functions.get_numeric_variable('MAX_SHIP_FUEL') / 10) +
+            (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 10)
           ) * 30
 
           if @my_player.total_resources > cost_of_attack_fleet
@@ -199,8 +199,8 @@ class Schemaverse
                   armada_ship.update_attributes(:action => "ATTACK")
                   armada_ship.upgrade("ATTACK", 200)
                   armada_ship.upgrade("DEFENSE", 200)
-                  armada_ship.upgrade("MAX_FUEL", (Functions.get_numeric_variable('MAX_SHIP_FUEL') / 5))
-                  armada_ship.upgrade("MAX_SPEED", (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 5))
+                  armada_ship.upgrade("MAX_FUEL", (Functions.get_numeric_variable('MAX_SHIP_FUEL') / 10))
+                  armada_ship.upgrade("MAX_SPEED", (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 10))
                   @my_player.balance -= cost_of_attack_fleet
 
                   if armada_ship.course_control((Functions.distance_between(armada_ship, planet_to_conquer) / 2).to_i, nil, planet_to_conquer.location)
