@@ -2,7 +2,7 @@ require 'rubygems'
 require 'active_record'
 require 'yaml'
 require 'geo_ruby'
-
+require 'pry'
 
 if ENV['DATABASE_URL'].nil?
 	db_config = YAML::load(File.open('config/database.yml'))
