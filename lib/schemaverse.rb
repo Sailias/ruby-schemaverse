@@ -24,8 +24,8 @@ class Schemaverse
       ship.objective = Planet.where("location ~= POINT(?)", ship.destination).first
     end
 
-    @travelling_ships = @ships.select{|s| s.objective && !s.name.include?("armada")}
-    @armada_ships = @ships.select{|s| s.objective && s.name.include?("armada")}
+    @travelling_ships = @ships.select { |s| s.objective && !s.name.include?("armada") }
+    @armada_ships = @ships.select { |s| s.objective && s.name.include?("armada") }
 
     @lost_ships = []
     @my_planets = Planet.my_planets.all
@@ -34,8 +34,8 @@ class Schemaverse
     @armada_planets = []
     @lost_planets = []
     @tic = 0
-    
-    
+
+
     @armada_ships.each do |ship|
       @armada_planets << ship.objective unless @armada_planets.include?(ship.objective)
     end
@@ -92,7 +92,7 @@ class Schemaverse
         end
 
         @lost_planets += @planets - my_planets
-        @planets = my_planets       
+        @planets = my_planets
 
         @lost_planets.each do |lost_planet|
           @armada_planets.unshift(lost_planet) unless @armada_planets.include?(lost_planet)
@@ -106,6 +106,8 @@ class Schemaverse
         @ships = @ships - @lost_ships
         @travelling_ships = @travelling_ships - @lost_ships
         @armada_ships = @armada_ships - @lost_ships
+
+        puts @travelling_ships.size
 
         #@travelling_ships = []
         #my_ships.select { |s| !s.destination.blank? }.each do |ship|
@@ -175,12 +177,12 @@ class Schemaverse
             end
           else
             planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.each do |p|
-              @armada_planets.unshift(p) unless @armada_planets.include?(p) && @objective_planets.include?(p)
+              @armada_planets.unshift(p) unless @armada_planets.include?(p) || @objective_planets.include?(p)
             end
           end
         end
 
-		puts "Number of armada groups: #{@armada_ships.group_by(&:objective).size}"
+        puts "Number of armada groups: #{@armada_ships.group_by(&:objective).size}"
         if @armada_ships.group_by(&:objective).size < 20 && @ships.size <= 1970
           # Create another group of amada ships if you can
           cost_of_attack_fleet = ((PriceList.ship) +
@@ -189,10 +191,10 @@ class Schemaverse
             (Functions.get_numeric_variable('MAX_SHIP_FUEL') / 3) +
             (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 3)
           ) * 30
-          
+
           if @my_player.total_resources >= cost_of_attack_fleet
-			
-			@my_player.convert_fuel_to_money(cost_of_attack_fleet.to_i) if @my_player.balance < cost_of_attack_fleet
+
+            @my_player.convert_fuel_to_money(cost_of_attack_fleet.to_i) if @my_player.balance < cost_of_attack_fleet
             planet_to_conquer = @armada_planets.first
             if planet_to_conquer
               closest_planet_to_objective = planet_to_conquer.closest_planets(1).my_planets.first
@@ -234,49 +236,49 @@ class Schemaverse
         # handle all travelling ships
         @travelling_ships.sort_by(&:distance_from_objective).each do |travelling_ship|
           begin
-			  if travelling_ship.at_destination?
-				if travelling_ship.objective.is_a?(Planet)
-				  if @planets.include?(travelling_ship.objective) || travelling_ship.ships_in_range.size > 0
-					# Lets move this ship to another planet!
-					new_planet = @objective_planets.sort_by { |p| Functions.distance_between(p, travelling_ship) }.first
-					if travelling_ship.course_control(travelling_ship.max_speed, nil, new_planet.location)
-					  travelling_ship.objective = new_planet
-					  @objective_planets.delete(new_planet)
-					end
+            if travelling_ship.at_destination?
+              if travelling_ship.objective.is_a?(Planet)
+                if @planets.include?(travelling_ship.objective) || travelling_ship.ships_in_range.size > 0
+                  # Lets move this ship to another planet!
+                  new_planet = @objective_planets.sort_by { |p| Functions.distance_between(p, travelling_ship) }.first
+                  if travelling_ship.course_control(travelling_ship.max_speed, nil, new_planet.location)
+                    travelling_ship.objective = new_planet
+                    @objective_planets.delete(new_planet)
+                  end
 
-					if travelling_ship.ships_in_range.size > 0
-					  # lets do something here to capture this planet
-					  # @armada_planets << travelling_ship.objective
-					end
+                  if travelling_ship.ships_in_range.size > 0
+                    # lets do something here to capture this planet
+                    # @armada_planets << travelling_ship.objective
+                  end
 
-				  else
-					puts "#{travelling_ship.name} is at the location. Mining#{travelling_ship.objective.name}"
-					travelling_ship.update_attributes(:action => "MINE", :action_target_id => travelling_ship.objective.id)
-				  end
-				else
-				  # Something else needs to happen here
-				end
-			  else
-				begin
-				  travelling_ship.modify_speed(@ships)
-				  travelling_ship.modify_fuel(@ships)
-				rescue Exception => e
-				  puts e.message
-				end
-			  end
+                else
+                  puts "#{travelling_ship.name} is at the location. Mining#{travelling_ship.objective.name}"
+                  travelling_ship.update_attributes(:action => "MINE", :action_target_id => travelling_ship.objective.id)
+                end
+              else
+                # Something else needs to happen here
+              end
+            else
+              begin
+                travelling_ship.modify_speed(@ships)
+                travelling_ship.modify_fuel(@ships)
+              rescue Exception => e
+                puts e.message
+              end
+            end
 
-			  #if @planets.include?(travelling_ship.objective)
-			  #  puts "Processing queue"
-			  #  travelling_ship.process_next_queue_item
-			  #end
+              #if @planets.include?(travelling_ship.objective)
+              #  puts "Processing queue"
+              #  travelling_ship.process_next_queue_item
+              #end
           rescue Exception => e
-			puts e.message
+            puts e.message
           end
         end
 
         @armada_ships.group_by(&:objective).each do |armada_ship_grp|
           if armada_ship_grp.last[0].at_destination?
-            if armada_ship_grp.last[0].ships_in_range.empty? || armada_ship_grp.last[0].ships_in_range.select{|s| s.health > 0}.size.zero?
+            if armada_ship_grp.last[0].ships_in_range.empty? || armada_ship_grp.last[0].ships_in_range.select { |s| s.health > 0 }.size.zero?
               armada_ship_grp.last.each do |armada_ship|
                 armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
               end
@@ -302,15 +304,15 @@ class Schemaverse
         puts "Checking for ships to attack"
         attacking_ships = []
         MyShip.joins(:ships_in_range).all.uniq.each do |s|
-          attack_ship = s.ships_in_range.all.select{|s| !attacking_ships.include?(s)}.first
+          attack_ship = s.ships_in_range.all.select { |s| !attacking_ships.include?(s) }.first
           unless attack_ship.nil?
-			  attacking_ships << attack_ship
-			  begin            
-				s.commence_attack(attack_ship.id)
-			  rescue Exception => e
-				# Row locking was occurring on mass upgrading
-				puts e.message
-			  end
+            attacking_ships << attack_ship
+            begin
+              s.commence_attack(attack_ship.id)
+            rescue Exception => e
+              # Row locking was occurring on mass upgrading
+              puts e.message
+            end
           end
         end
       end
