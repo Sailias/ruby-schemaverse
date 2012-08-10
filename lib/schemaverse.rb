@@ -107,7 +107,17 @@ class Schemaverse
         @travelling_ships = @travelling_ships - @lost_ships
         @armada_ships = @armada_ships - @lost_ships
 
-        puts @travelling_ships.size
+        @ships.each do |s|
+          s = s.reload rescue nil
+        end
+
+        @travelling_ships.each do |ts|
+          ts = ts.reload rescue nil
+        end
+
+        @armada_ships.each do |as|
+          as.reload rescue nil
+        end
 
         #@travelling_ships = []
         #my_ships.select { |s| !s.destination.blank? }.each do |ship|
@@ -119,7 +129,7 @@ class Schemaverse
 
         # Add the planet back to the start of our objective planets
         @lost_ships.collect(&:objective).compact.select { |o| o.is_a?(Planet) && !@planets.include?(o) }.each do |planet|
-          @objective_planets.shift(planet) unless @objective_planets.include?(planet) || @planets.include?(planet)
+          @objective_planets << planet unless @objective_planets.include?(planet) || @planets.include?(planet)
         end
 
         # Expand to new planets based on tic
