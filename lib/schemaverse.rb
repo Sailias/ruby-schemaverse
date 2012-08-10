@@ -276,7 +276,7 @@ class Schemaverse
 
         @armada_ships.group_by(&:objective).each do |armada_ship_grp|
           if armada_ship_grp.last[0].at_destination?
-            if armada_ship_grp.last[0].ships_in_range.empty?
+            if armada_ship_grp.last[0].ships_in_range.empty? || armada_ship_grp.last[0].ships_in_range.select{|s| s.health > 0}.size.zero?
               armada_ship_grp.last.each do |armada_ship|
                 armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
               end
