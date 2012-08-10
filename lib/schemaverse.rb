@@ -290,6 +290,7 @@ class Schemaverse
                 armada_ship_grp.last.each do |armada_ship|
                   if armada_ship.course_control(armada_ship.max_speed, nil, new_armada_planet.location)
                     armada_ship.objective = new_armada_planet
+                    armada_ship.update_attributes(:action => "ATTACK", :action_target_id => nil)
                   end
                 end
                 @armada_planets.delete(new_armada_planet)
