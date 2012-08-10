@@ -135,7 +135,7 @@ class Schemaverse
         # Expand to new planets based on tic
         if @travelling_ships.size <= @tic / 3
           ((@tic / 3) - @travelling_ships.size).to_i.times do |i|
-            expand_to_new_planet(@objective_planets[i])
+            expand_to_new_planet(next_expand_planet(i))
           end
         end
 
@@ -250,7 +250,7 @@ class Schemaverse
               if travelling_ship.objective.is_a?(Planet)
                 if @planets.include?(travelling_ship.objective) || travelling_ship.ships_in_range.size > 0
                   # Lets move this ship to another planet!
-                  new_planet = @objective_planets.sort_by { |p| Functions.distance_between(p, travelling_ship) }.first
+                  new_planet = next_expand_planet(0)
                   if travelling_ship.course_control(travelling_ship.max_speed, nil, new_planet.location)
                     travelling_ship.objective = new_planet
                     @objective_planets.delete(new_planet)
@@ -328,6 +328,11 @@ class Schemaverse
       end
     end
   end
+
+  def next_expand_planet(i)
+    @objective_planets.group_by(&:conqueror_id).to_a.select { |grp| grp.last.size < 2 }.collect{|g| g.last}.flatten[i]
+  end
+
 
   # @param [Object] planet
   def conquer_planet(planet)
