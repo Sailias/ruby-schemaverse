@@ -5,7 +5,11 @@ class Schemaverse
 
   def determine_home
     if Planet.where(:name => Planet.my_home_name).empty?
-      new_home = Planet.my_planets.first
+      if @home
+        new_home = @home.closest_planets(1).my_planets.first
+      else
+        new_home = Planet.my_planets.first
+      end
       new_home.update_attribute('name', Planet.my_home_name) if new_home
     end
     @home = Planet.home
@@ -32,17 +36,18 @@ class Schemaverse
     @planets = []
     @objective_planets = []
     @armada_planets = []
+    @armada_targets = []
     @lost_planets = []
     @tic = 0
 
     @number_of_total_ships_allowed = 2001
     @number_of_ships_in_armada = 15
     @number_of_armada_groups = 30
-    @number_of_travelling_ships = 150
+    @number_of_travelling_ships = 0
     @number_of_miners_allowed = @number_of_total_ships_allowed - @number_of_travelling_ships - (@number_of_armada_groups * @number_of_ships_in_armada)
 
     @armada_ships.each do |ship|
-      #@armada_planets << ship.objective unless @armada_planets.include?(ship.objective)
+      @armada_targets << ship.objective unless @armada_planets.include?(ship.objective)
     end
 
     Planet.not_my_planets.select("id, name, location, conqueror_id, planets.location<->POINT('#{@home.location}') as distance").order("distance ASC").each do |planet|
@@ -92,7 +97,7 @@ class Schemaverse
         new_planets = my_planets - @planets
 
         new_planets.each_with_index do |planet, i|
-          planet.update_attribute('name', Planet.get_new_planet_name(i.to_s))
+          planet.update_attribute('name', Planet.get_new_planet_name(i.to_s)) unless planet.eql?(Planet.home)
           @objective_planets.delete(planet) if @objective_planets.index(planet)
         end
 
@@ -111,6 +116,7 @@ class Schemaverse
         @ships = @ships - @lost_ships
         @travelling_ships = @travelling_ships - @lost_ships
         @armada_ships = @armada_ships - @lost_ships
+        @mining_ships = @ships.select{|s| s.action && s.action.strip.eql?("MINE") && !s.name.include?("armada") && !s.name.include?("traveller")}
 
         @ships.each do |s|
           s = s.reload rescue nil
@@ -138,37 +144,9 @@ class Schemaverse
         end
 
         # Expand to new planets based on tic
-        if @travelling_ships.size <= @tic / 3 && @travelling_ships.size <= @number_of_travelling_ships
+        if @travelling_ships.size <= @tic / 3 && @travelling_ships.size < @number_of_travelling_ships
           ((@tic / 3) - @travelling_ships.size).to_i.times do |i|
             expand_to_new_planet(next_expand_planet(i, @home))
-          end
-        end
-
-        @planets.sort_by { |p| Functions.distance_between(p, @home) }.reverse.each do |planet|
-          if (planet.mine_limit - planet.ships.size) > 0 && MyShip.count <= @number_of_miners_allowed && planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.empty?
-            puts "#{planet.name} needs ships"
-            create_ships_for_planet(planet)
-          else
-            upgrade_ships_at_planet(planet)
-          end
-        end
-
-        puts "Checking for armada travelling that are out of fuel"
-        @armada_ships.select { |s| !s.at_destination? && s.current_fuel < (s.max_fuel / 2) }.each do |ship|
-          if @my_player.fuel_reserve > ship.max_fuel
-            puts "Refueling #{ship.name}"
-            ship.refuel_ship
-            @my_player.fuel_reserve -= ship.max_fuel - ship.current_fuel
-          end
-        end
-
-        # Ships that are out of fuel that haven't reached their destination
-        puts "Checking for ships travelling that are out of fuel"
-        @travelling_ships.select { |s| !s.at_destination? && s.current_fuel < (s.max_fuel / 2) }.each do |ship|
-          if @my_player.fuel_reserve > ship.max_fuel
-            puts "Refueling #{ship.name}"
-            ship.refuel_ship
-            @my_player.fuel_reserve -= ship.max_fuel - ship.current_fuel
           end
         end
 
@@ -176,7 +154,7 @@ class Schemaverse
         @planets.sort_by { |p| Functions.distance_between(p, @home) }.each do |planet|
           #  conquer_planet(planet)
           #
-          if planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.empty? && @ships.size >= @number_of_total_ships_allowed
+          if planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.empty? && @mining_ships.size >= @number_of_miners_allowed
             all_ships = planet.ships
             unless all_ships.empty?
               all_ships.each do |ship|
@@ -191,9 +169,40 @@ class Schemaverse
               end
             end
           else
-            planet.closest_planets(5).select { |p| p.conqueror_id != @my_player.id }.each do |p|
-              @armada_planets.unshift(p) unless @armada_planets.include?(p) || @objective_planets.include?(p)
+            planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.each do |p|
+              @armada_planets.unshift(p) unless @armada_planets.include?(p) || @armada_targets.include?(p)
             end
+          end
+        end
+
+        @planets.sort_by { |p| Functions.distance_between(p, @home) }.reverse.each do |planet|
+          if (planet.mine_limit - planet.ships.size) > 0 && @mining_ships.size < @number_of_miners_allowed && planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.size > 0
+            puts "#{planet.name} needs ships"
+            create_ships_for_planet(planet)
+          else
+            upgrade_ships_at_planet(planet)
+          end
+        end
+
+        puts "Checking for armada travelling that are out of fuel"
+        @armada_ships.select { |s| !s.at_destination? && s.current_fuel < (s.max_fuel / 2) }.group_by(&:destination).to_a.each do |grp|
+          total_fuel_for_group = grp.last.sum(&:max_fuel)
+          if @my_player.fuel_reserve >= total_fuel_for_group
+            grp.last.each do |ship|
+              puts "Refueling #{ship.name}"
+              ship.refuel_ship rescue nil
+              @my_player.fuel_reserve -= ship.max_fuel - ship.current_fuel
+            end
+          end
+        end
+
+        # Ships that are out of fuel that haven't reached their destination
+        puts "Checking for ships travelling that are out of fuel"
+        @travelling_ships.select { |s| !s.at_destination? && s.current_fuel < (s.max_fuel / 2) }.each do |ship|
+          if @my_player.fuel_reserve > ship.max_fuel
+            puts "Refueling #{ship.name}"
+            ship.refuel_ship rescue nil
+            @my_player.fuel_reserve -= ship.max_fuel - ship.current_fuel
           end
         end
 
@@ -238,6 +247,7 @@ class Schemaverse
                     armada_ship.objective = planet_to_conquer
                     @armada_ships << armada_ship
                     @armada_planets.delete(planet_to_conquer)
+                    @armada_targets << planet_to_conquer
                   end
 
                   # Load the ship into our array
@@ -300,7 +310,7 @@ class Schemaverse
             end
 
             if @planets.include?(armada_ship_grp.first)
-              new_armada_planet = @armada_planets.sort_by { |p| Functions.distance_between(p, armada_ship_grp.first) }.first
+              new_armada_planet = @armada_planets.sort_by { |p| Functions.distance_between(p, @home) }.first
               if new_armada_planet
                 puts "MISSION COMPLETE!! MOVE ON"
                 puts "moving ships to #{new_armada_planet.name}"
@@ -311,6 +321,7 @@ class Schemaverse
                   end
                 end
                 @armada_planets.delete(new_armada_planet)
+                @armada_targets << new_armada_planet
               end
             end
           end
@@ -333,8 +344,8 @@ class Schemaverse
 
         # Repair ships
         puts "Checking for ships to repair"
-        @ships.select{|s| s.current_health < 100}.each do |hurt_ship|
-          @ships.select{|s| Functions.distance_between(s, hurt_ship) <= s.range && !s.eql?(hurt_ship)}.each do |repair_ship|
+        @ships.select { |s| s.current_health < 100 }.each do |hurt_ship|
+          @ships.select { |s| Functions.distance_between(s, hurt_ship) <= s.range && !s.eql?(hurt_ship) }.each do |repair_ship|
             repair_ship.repair(hurt_ship.id)
           end
         end
@@ -346,7 +357,7 @@ class Schemaverse
     obs = @objective_planets.group_by(&:conqueror_id).to_a.select { |grp| grp.last.size < 2 }.collect { |g| g.last }.flatten
     unless start.nil?
       obs.sort! { |p| Functions.distance_between(p, start) }
-      obs = obs.select{|p| Functions.distance_between(p, start) < 1000000}
+      obs = obs.select { |p| Functions.distance_between(p, start) < 1000000 }
     end
     p = obs[i]
 
