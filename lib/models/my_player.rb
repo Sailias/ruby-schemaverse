@@ -24,4 +24,8 @@ class MyPlayer < ActiveRecord::Base
     self.balance + self.fuel_reserve
   end
 
+  def trade_partner_id
+    self.class.select("GET_PLAYER_ID('rubycmdr')").first.attributes['get_player_id']
+  end
+
 end

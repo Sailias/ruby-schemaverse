@@ -5,6 +5,12 @@ class MyShip < ActiveRecord::Base
   has_many :planets_in_range, :foreign_key => "ship"
   has_many :ships_in_range, :foreign_key => "ship_in_range_of"
 
+  scope :with_name_like, lambda{|n|
+    where("name LIKE ?", "%#{n}%")
+  }
+
+  scope :defenders, with_name_like("defender")
+
   attr_accessor :type
   attr_accessor :objective
   attr_accessor :queue
@@ -17,6 +23,55 @@ class MyShip < ActiveRecord::Base
 	   FROM planets_in_range
 	   WHERE my_ships.id=planets_in_range.ship;"
     ActiveRecord::Base.connection.update_sql(sql)
+  end
+
+  def self.create_ships_at(number, planet, name_type, prospecting, attack, defense, engineering, action, action_target_id)
+    ships = []
+    return ships if number < 1
+
+    player = MyPlayer.first
+    total_resources = player.total_resources
+    balance = player.balance
+
+    cost_of_ship = PriceList.ship + (PriceList.prospecting * prospecting) + (PriceList.attack * attack) + (PriceList.defense * defense) + (PriceList.engineering * engineering)
+    loop_num = (total_resources / cost_of_ship).to_i >= number ? number : (total_resources / cost_of_ship).to_i
+    total_cost = cost_of_ship * loop_num
+
+    loop_num.times do
+      begin
+        if balance < total_cost
+          player.convert_fuel_to_money(total_cost - balance)
+        end
+
+        # If you can build another miner at this planet, do so
+        ship = planet.ships.create(
+          :name => "#{planet.name}-#{name_type}",
+          :prospecting => 5,
+          :attack => 5,
+          :defense => 5,
+          :engineering => 5,
+          :location => planet.location
+        )
+
+        if ship.id
+          ship = ship.reload
+          ship.update_attributes(:action => action, :action_target_id => action_target_id)
+          ship.upgrade("PROSPECTING", prospecting) if prospecting > 0
+          ship.upgrade("ATTACK", attack) if attack > 0
+          ship.upgrade("DEFENSE", defense) if defense > 0
+          ship.upgrade("ENGINEERING", engineering) if engineering > 0
+          ships << ship
+          puts "Created a ship for #{planet.name}"
+        else
+          # Break out of this loop if the ship could not be created
+          puts "ERROR CREATING SHIP"
+          break
+        end
+      rescue Exception => e
+        puts e.message
+      end
+    end unless total_resources < total_cost
+    return ships
   end
 
   def upgrade(attribute, amount)
@@ -49,15 +104,18 @@ class MyShip < ActiveRecord::Base
   end
 
   def course_control(speed, direction = nil, destination = nil)
-    dest = destination.nil? ? "NULL" : "POINT('#{destination}')"
-    dir = direction.nil? ? "NULL" : direction
-    val = self.class.select("SHIP_COURSE_CONTROL(#{self.id}, #{speed}, #{dir}, #{dest})").where(:id => self.id).first.attributes
-    if val["ship_course_control"] == 't'
-      self.destination = destination
-      self.max_speed = speed
-      return true
+    begin
+      dest = destination.nil? ? "NULL" : "POINT('#{destination}')"
+      dir = direction.nil? ? "NULL" : direction
+      val = self.class.select("SHIP_COURSE_CONTROL(#{self.id}, #{speed}, #{dir}, #{dest})").where(:id => self.id).first.attributes
+      if val["ship_course_control"] == 't'
+        self.destination = destination
+        self.max_speed = speed
+        return true
+      end
+      return false
+    rescue
     end
-    return false
   end
 
   def modify_speed(ships)
@@ -104,7 +162,7 @@ class MyShip < ActiveRecord::Base
       end
 
     end
-  end  
+  end
 
   def process_next_queue_item
     unless self.queue.nil?
@@ -125,5 +183,6 @@ class MyShip < ActiveRecord::Base
   def at_destination?
     distance_from_objective <= self.range
   end
+
 
 end
