@@ -6,18 +6,6 @@ class Schemaverse
     #set_up_variables
   end
 
-  def determine_home
-    if Planet.where(:name => Planet.my_home_name).empty?
-      if @home
-        new_home = @home.closest_planets(1).my_planets.first
-      else
-        new_home = Planet.my_planets.first
-      end
-      new_home.update_attribute('name', Planet.my_home_name) if new_home
-    end
-    @home = Planet.home
-  end
-
   def play
     last_tic = 0
     last_round = nil
@@ -29,22 +17,22 @@ class Schemaverse
       @round = RoundSeq.first.last_value
       last_round ||= @round
 
-      #unless last_round.eql?(@round)
-      #  puts "A NEW ROUND HAS BEGUN!!"
-      #  # RESET EVERYTHING
-      #
-      #  # Destroy all but 30 ships if there are some already made
-      #  puts "A new round has begun"
-      #  (MyShip.all - MyShip.first(30)).each do |ship|
-      #    ship.destroy
-      #  end
-      #
-      #  determine_home
-      #
-      #  # Make all existing ships mine home
-      #  MyShip.all.update_attribute("action_target_id", @home.id)
-      #  set_up_variables
-      #end
+      unless last_round.eql?(@round)
+        puts "A NEW ROUND HAS BEGUN!!"
+        # RESET EVERYTHING
+
+        # Destroy all but 30 ships if there are some already made
+        puts "A new round has begun"
+        (MyShip.all - MyShip.first(30)).each do |ship|
+          ship.destroy
+        end
+
+        determine_home
+
+        # Make all existing ships mine home
+        MyShip.all.update_attribute("action_target_id", @home.id)
+        set_up_variables
+      end
 
       if last_tic != @tic
         #sleep(45) # Wait 45 seconds into each round for the data to propagate
@@ -52,34 +40,17 @@ class Schemaverse
         puts "Starting new Tic"
         last_tic = @tic
 
-        puts "loading tic data"
         populate_tic_data
-
-        #handle_interior_ships
-
-        puts "handling planet ships"
+        handle_interior_ships
         handle_planets_ships
-
-        puts "refueling ships"
         refuel_ships
-
         #deploy_travelling_ships
-
-        puts "deploying armada groups"
         deploy_armada_groups
-
         #manage_travelling_ships_actions
-
-        puts "managing armada groups"
         manage_armada_ships_actions
-
-        puts "manage ships in range"
+        handle_lost_planets
         manage_ships_in_range
-
-        puts "attacking ships"
         attack_ships
-
-        puts "repairing ships"
         repair_ships
 
       end
@@ -113,17 +84,31 @@ class Schemaverse
   end
 
   def create_ships_for_planet(planet)
-    total_ships_to_create = (planet.mine_limit + 20 - planet.ships.size) - @trade_ships.select { |ts| ts.location.eql?(planet.location) }.size
-    puts "#{planet.name} => SHIPS TO CREATE: #{total_ships_to_create}"
-    if total_ships_to_create > 0
-      if @ships.size + total_ships_to_create >= @number_of_total_ships_allowed
+    miners_to_create = (planet.mine_limit - planet.ships.size) - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("miner") }.size
+    defenders_to_create = (20 - planet.ships.defenders.size) - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("defender") }.size
+
+    puts "#{planet.name} => MINERS TO CREATE: #{miners_to_create}"
+    if miners_to_create > 0
+      if @ships.size + miners_to_create >= @number_of_total_ships_allowed
         # Stash ships at a planet for now
-        puts "   Need to free up: #{(@ships.size + total_ships_to_create) - @number_of_total_ships_allowed} ships!"
-        free_up_ships((@ships.size + total_ships_to_create) - @number_of_total_ships_allowed)
+        puts "   Need to free up: #{(@ships.size + miners_to_create) - @number_of_total_ships_allowed} ships!"
+        free_up_ships((@ships.size + miners_to_create) - @number_of_total_ships_allowed)
       end
 
-      @ships + MyShip.create_ships_at(planet.mine_limit - planet.ships.size - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?('miner') }.size, planet, 'miner', 480, 0, 0, 0, 'MINE', planet.id)
-      MyShip.create_ships_at(20 - planet.ships.defenders.size - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?('defender') }.size, planet, 'defender', 0, 200, 200, 80, nil, nil)
+      @ships = @ships + MyShip.create_ships_at(planet.mine_limit - planet.ships.size - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?('miner') }.size, planet, 'miner', 480, 0, 0, 0, 'MINE', planet.id)
+
+    end
+
+    puts "#{planet.name} => DEFENDERS TO CREATE: #{defenders_to_create}"
+    if defenders_to_create > 0
+      if @ships.size + defenders_to_create >= @number_of_total_ships_allowed
+        # Stash ships at a planet for now
+        puts "   Need to free up: #{(@ships.size + defenders_to_create) - @number_of_total_ships_allowed} ships!"
+        free_up_ships((@ships.size + defenders_to_create) - @number_of_total_ships_allowed)
+      end
+
+      @ships = @ships + MyShip.create_ships_at(20 - planet.ships.defenders.size - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?('defender') }.size, planet, 'defender', 0, 200, 200, 80, nil, nil)
+
     end
   end
 
@@ -131,11 +116,15 @@ class Schemaverse
   ######## TRADE METHODS
 
   def free_up_ships(n = 0)
-    stash_ships(@ships.select { |s| !@ships_in_range.collect(&:ship_in_range_of).include?(s.id) && !s.name.include?('armada') }.first(n))
+    if n > 0
+      my_ships_with_enemy_ships = @ships_in_range.select { |s| !s.player_id.zero? }.collect(&:ship_in_range_of)
+      ships_to_stash = @ships.select { |s| !my_ships_with_enemy_ships.include?(s.id) && !s.name.include?('armada') }.sort_by { |s| rand(1000) }.first(n)
+      stash_ships(ships_to_stash)
+    end
   end
 
   def stash_ships_at(planet)
-    stash_ships(planet.ships.where("name NOT LIKE ? AND name NOT LIKE ?", "traveller", "armada").offset(1).all)
+    stash_ships(planet.ships.where("name NOT LIKE ? AND name NOT LIKE ?", "%traveller%", "%armada%").offset(1).all)
   end
 
   def stash_ships(ships)
@@ -293,15 +282,14 @@ class Schemaverse
     # Start killing of ships at planets that in my interior
     @planets.sort_by { |p| Functions.distance_between(p, @home) }.each do |planet|
       begin
-
         #  conquer_planet(planet)
         #
         if planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.empty? && @mining_ships.size >= @number_of_miners_allowed
-          stash_ships_at(planet)
-          #else
-          #  planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.each do |p|
-          #    @armada_planets.unshift(p) unless @armada_planets.include?(p) || @armada_targets.include?(p)
-          #  end
+          #stash_ships_at(planet)
+        else
+          planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.each do |p|
+            @armada_planets.unshift(p) unless @armada_planets.include?(p) || @armada_targets.include?(p)
+          end
         end
       rescue
       end
@@ -309,6 +297,7 @@ class Schemaverse
   end
 
   def handle_planets_ships
+    puts "handling planet ships"
     @planets.sort_by { |p| Functions.distance_between(p, @home) }.reverse.each do |planet|
       create_ships_for_planet(planet)
     end
@@ -366,16 +355,17 @@ class Schemaverse
 
           if @my_player.total_resources >= cost_of_attack_fleet
 
-            if @ships.size >= @number_of_total_ships_allowed
-              #@mining_ships.first(@number_of_ships_in_armada).each do |miner_ship|
-              #  miner_ship.destroy
-              #end
-              free_up_ships(@number_of_ships_in_armada)
-            end
-
             @my_player.convert_fuel_to_money(cost_of_attack_fleet.to_i) if @my_player.balance < cost_of_attack_fleet
-            planet_to_conquer = @objective_planets.first
+            planet_to_conquer = @armada_planets.first
             if planet_to_conquer
+
+              if @ships.size >= @number_of_total_ships_allowed
+                #@mining_ships.first(@number_of_ships_in_armada).each do |miner_ship|
+                #  miner_ship.destroy
+                #end
+                free_up_ships(@number_of_ships_in_armada)
+              end
+
               closest_planet_to_objective = planet_to_conquer.closest_planets(1).my_planets.first
               @number_of_ships_in_armada.times do
                 begin
@@ -411,8 +401,11 @@ class Schemaverse
                   end
                 rescue Exception => e
                   puts e.message
+                  puts e.backtrace
                 end
               end
+            else
+              break
             end
           end
         rescue
@@ -468,6 +461,7 @@ class Schemaverse
   end
 
   def manage_armada_ships_actions
+    puts "managing armada groups"
     @armada_ships.group_by(&:objective).each do |armada_ship_grp|
       begin
         if armada_ship_grp.last[0].at_destination?
@@ -499,31 +493,57 @@ class Schemaverse
   end
 
   def manage_ships_in_range
-    @ships_in_range.each do |sir|
-      s = @ships.select { |s| s.id.eql?(sir.ship_in_range_of) }.first
-      if s
-        ships_to_pop = @trade_ships.select { |ts| Functions.distance_between(ts, s) < 300 }
-        free_up_ships(ships_to_pop.size)
-        TradeItem.delete_trades(ships_to_pop.collect(&:id))
-        @trade_ships = @trade_ships - ships_to_pop
+    puts "manage ships in range"
+    enemy_ships = @ships_in_range.select { |s| !s.player_id.zero? }
+    stashed_ships = @ships_in_range.select { |s| s.player_id.zero? }
+
+    #enemy_ship_ids = enemy_ships.collect(&:ship_in_range_of)
+    #stashed_ship_ids = stashed_ships.collect(&:ship_in_range_of)
+
+    enemy_locations = enemy_ships.collect(&:enemy_location).uniq
+
+    enemy_locations.each do |el|
+      ships_to_pop = @trade_ships.select { |ss|
+        d = Functions.distance_between_strs(ss.location, el)
+        d < 300
+      }
+      #ships_to_pop = @trade_ships.select { |ss| ss.location.eql?(el) }
+      unless ships_to_pop.empty?
+        puts "    Need to pop #{ships_to_pop.size} to fight"
+
+        #free_up_ships(ships_to_pop.size)
+        #TradeItem.delete_trades(ships_to_pop.collect(&:id))
+        #@trade_ships = @trade_ships - ships_to_pop
+        #@ships = @ships + ships_to_pop
       end
     end
+
+
+  end
+
+  def handle_lost_planets
+    @lost_planets.each do |lost_planet|
+      pop_ships = @trade_ships.select { |ts| ts.location.eql?(lost_planet.location) }
+      unless pop_ships.emtpy?
+        free_up_ships(pop_ships.size)
+        TradeItem.delete_trades(pop_ships.collect(&:id))
+        @trades = @trades - pop_ships
+        @ships = @ships + pop_ships
+      end
+    end
+
   end
 
   def attack_ships
     puts "Checking for ships to attack"
     attacking_ships = []
-    MyShip.joins(:ships_in_range).all.uniq.each do |s|
+    @ships_in_range.select { |s| !s.player_id.zero? }.each do |sir|
+      next if attacking_ships.collect(&:id).include?(sir.ship_in_range_of)
       begin
-        attack_ship = s.ships_in_range.all.select { |s| !attacking_ships.include?(s) }.first
-        unless attack_ship.nil?
+        attack_ship = @ships.select { |s| s.id.eql?(sir.ship_in_range_of) }.first
+        if attack_ship
           attacking_ships << attack_ship
-          begin
-            s.commence_attack(attack_ship.id)
-          rescue Exception => e
-            # Row locking was occurring on mass upgrading
-            puts e.message
-          end
+          attack_ship.commence_attack(sir.id)
         end
       rescue
       end

@@ -32,6 +32,20 @@ class Functions
     def get_y(obj)
       obj.location.split(',').last.chop.to_f
     end
+
+    def distance_between_strs(str_a, str_b)
+      p1 = GeoRuby::SimpleFeatures::Point.from_x_y(get_x_for_str(str_a), get_y_for_str(str_a))
+      p2 = GeoRuby::SimpleFeatures::Point.from_x_y(get_x_for_str(str_b), get_y_for_str(str_b))
+      p1.euclidian_distance(p2)
+    end
+
+    def get_x_for_str(str)
+      str.split(",").first[1..-1].to_f
+    end
+
+    def get_y_for_str(str)
+      str.split(',').last.chop.to_f
+    end
     
   end
 

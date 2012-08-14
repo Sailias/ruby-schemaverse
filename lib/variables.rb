@@ -1,5 +1,17 @@
 module Variables
 
+  def determine_home
+    if Planet.where(:name => Planet.my_home_name).empty?
+      if @home
+        new_home = @home.closest_planets(1).my_planets.first
+      else
+        new_home = Planet.my_planets.first
+      end
+      new_home.update_attribute('name', Planet.my_home_name) if new_home
+    end
+    @home = Planet.home
+  end
+
   def set_up_variables
     @my_player = MyPlayer.first
     determine_home
@@ -43,12 +55,14 @@ module Variables
     @trade = MyTrade.create_trade
     populate_trade_data
 
+    puts "loading ships in range"
     @ships_in_range = ShipsInRange.all
-
-
   end
 
   def populate_tic_data
+
+    puts "loading tic data"
+
     @my_player = MyPlayer.first
 
     puts "    reloading planets"
@@ -128,7 +142,7 @@ module Variables
       #@trade.items.where(:id => trade_items.collect(&:id)).destroy_all
 
       # put the trade item into trade ships array
-      @trade_ships += MyShip.find(trade_items.collect(&:descriptor))
+      @trade_ships += MyShip.where(:id => trade_items.collect(&:descriptor))
 
       TradeItem.trade_ships(@trade_ships)
 

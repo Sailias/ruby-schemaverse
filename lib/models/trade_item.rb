@@ -13,7 +13,7 @@ class TradeItem < ActiveRecord::Base
       ship_ids = ships.collect(&:id).join(",")
       MyShip.where(:id => ship_ids).update_all("action=null", "1=1")
       ActiveRecord::Base.connection.execute("INSERT INTO trade_items (trade_id, player_id, description_code, quantity, descriptor) SELECT #{MyTrade.first.id}, #{MyPlayer.first.id}, 'SHIP', 1, my_ships.id FROM my_ships WHERE id IN (#{ship_ids})")
-      return TradeItem.last(ships.size)
+      #return TradeItem.last(ships.size)
     rescue
     end
   end
