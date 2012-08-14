@@ -507,7 +507,7 @@ class Schemaverse
         #armada_ship_grp.last.each do |armada_ship|
         #  armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
         #end
-        if armada_ship_grp.last.select { |as| as.at_destination }.size > 0
+        if armada_ship_grp.last.select { |as| as.at_destination? }.size > 0
 
           #armada_ship_grp.last.each do |armada_ship|
           #  armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
