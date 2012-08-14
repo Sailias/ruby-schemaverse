@@ -88,7 +88,7 @@ class MyShip < ActiveRecord::Base
   end
 
   def self.refuel_ships(ships)
-    MyShip.select("REFUEL_SHIP(my_ships.id)").where(:id => ships.collect(&:id))
+    MyShip.select("REFUEL_SHIP(my_ships.id)").where(:id => ships.collect(&:id)).all
   end
 
   def commence_attack(ship_id)
