@@ -309,7 +309,7 @@ class Schemaverse
       #stash_ships_at(planet)
       #else
       planet.closest_planets(30).select { |p| p.conqueror_id != @my_player.id }.each do |p|
-        @armada_planets.unshift(p) unless @armada_planets.include?(p) || @armada_targets.include?(p)
+        @armada_planets.unshift(p) if !@armada_planets.include?(p) && !@armada_targets.include?(p)
       end
       #end
       #rescue
