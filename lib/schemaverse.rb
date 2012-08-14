@@ -42,14 +42,25 @@ class Schemaverse
 
         populate_tic_data
         handle_interior_ships
+
+        if @ships.size > @number_of_total_ships_allowed
+          # stash my ships so there are only 1/2 of the max in play
+          free_up_ships(@ships.size - @number_of_total_ships_allowed + @number_of_total_ships_allowed / 2)
+        end
+
         handle_planets_ships
         refuel_ships
         #deploy_travelling_ships
         deploy_armada_groups
         #manage_travelling_ships_actions
+
+        TradeItem.destroy_all_trades
+        @ships += @trade_ships
+        @trade_ships = []
+
         manage_armada_ships_actions
-        handle_lost_planets
-        manage_ships_in_range
+        #handle_lost_planets
+        #manage_ships_in_range
         attack_ships
         repair_ships
 
@@ -83,17 +94,23 @@ class Schemaverse
     end
   end
 
+  def get_create_count_for_planet(planet)
+    miners_to_create = (planet.mine_limit - planet.ships.size) - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("miner") }.size
+    defenders_to_create = (20 - planet.ships.defenders.size) - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("defender") }.size
+    return miners_to_create + defenders_to_create
+  end
+
   def create_ships_for_planet(planet)
     miners_to_create = (planet.mine_limit - planet.ships.size) - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("miner") }.size
     defenders_to_create = (20 - planet.ships.defenders.size) - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("defender") }.size
 
     puts "#{planet.name} => MINERS TO CREATE: #{miners_to_create}"
     if miners_to_create > 0
-      if @ships.size + miners_to_create >= @number_of_total_ships_allowed
-        # Stash ships at a planet for now
-        puts "   Need to free up: #{(@ships.size + miners_to_create) - @number_of_total_ships_allowed} ships!"
-        free_up_ships((@ships.size + miners_to_create) - @number_of_total_ships_allowed)
-      end
+      #if @ships.size + miners_to_create >= @number_of_total_ships_allowed
+      # Stash ships at a planet for now
+      #  puts "   Need to free up: #{(@ships.size + miners_to_create) - @number_of_total_ships_allowed} ships!"
+      #  free_up_ships((@ships.size + miners_to_create) - @number_of_total_ships_allowed)
+      #end
 
       @ships = @ships + MyShip.create_ships_at(planet.mine_limit - planet.ships.size - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?('miner') }.size, planet, 'miner', 480, 0, 0, 0, 'MINE', planet.id)
 
@@ -101,11 +118,11 @@ class Schemaverse
 
     puts "#{planet.name} => DEFENDERS TO CREATE: #{defenders_to_create}"
     if defenders_to_create > 0
-      if @ships.size + defenders_to_create >= @number_of_total_ships_allowed
-        # Stash ships at a planet for now
-        puts "   Need to free up: #{(@ships.size + defenders_to_create) - @number_of_total_ships_allowed} ships!"
-        free_up_ships((@ships.size + defenders_to_create) - @number_of_total_ships_allowed)
-      end
+      #if @ships.size + defenders_to_create >= @number_of_total_ships_allowed
+      # Stash ships at a planet for now
+      #  puts "   Need to free up: #{(@ships.size + defenders_to_create) - @number_of_total_ships_allowed} ships!"
+      #  free_up_ships((@ships.size + defenders_to_create) - @number_of_total_ships_allowed)
+      #end
 
       @ships = @ships + MyShip.create_ships_at(20 - planet.ships.defenders.size - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?('defender') }.size, planet, 'defender', 0, 200, 200, 80, nil, nil)
 
@@ -307,7 +324,7 @@ class Schemaverse
     puts "Checking for armada travelling that are out of fuel"
     @armada_ships.select { |s| !s.at_destination? && s.current_fuel < s.speed }.group_by(&:destination).to_a.each do |grp|
       total_fuel_for_group = grp.last.sum(&:max_fuel)
-      if @my_player.fuel_reserve >= total_fuel_for_group
+      if @my_player.total_resources >= total_fuel_for_group
         grp.last.each do |ship|
           puts "Refueling #{ship.name}"
           ship.refuel_ship rescue nil
@@ -359,12 +376,12 @@ class Schemaverse
             planet_to_conquer = @armada_planets.first
             if planet_to_conquer
 
-              if @ships.size >= @number_of_total_ships_allowed
-                #@mining_ships.first(@number_of_ships_in_armada).each do |miner_ship|
-                #  miner_ship.destroy
-                #end
-                free_up_ships(@number_of_ships_in_armada)
-              end
+              #if @ships.size >= @number_of_total_ships_allowed
+              #@mining_ships.first(@number_of_ships_in_armada).each do |miner_ship|
+              #  miner_ship.destroy
+              #end
+              free_up_ships(@number_of_ships_in_armada)
+              #end
 
               closest_planet_to_objective = planet_to_conquer.closest_planets(1).my_planets.first
               @number_of_ships_in_armada.times do
@@ -407,6 +424,8 @@ class Schemaverse
             else
               break
             end
+          else
+            break
           end
         rescue
         end

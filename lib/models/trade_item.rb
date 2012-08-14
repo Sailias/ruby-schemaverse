@@ -25,4 +25,10 @@ class TradeItem < ActiveRecord::Base
     rescue
     end
   end
+
+  def self.destroy_all_trades
+    ids = TradeItem.all.collect(&:descriptor)
+    ActiveRecord::Base.connection.execute("DELETE FROM trade_items")
+    MyShip.where(:id => ids).update_all("action='MINE'", "1=1")
+  end
 end
