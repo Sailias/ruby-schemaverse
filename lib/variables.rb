@@ -30,6 +30,7 @@ module Variables
 
     @lost_ships = []
     @my_planets = Planet.my_planets.all
+
     @planets = [@home]
     @objective_planets = []
     @armada_planets = []
@@ -78,6 +79,8 @@ module Variables
 
     @lost_planets += @planets - my_planets
     @planets = my_planets
+
+    puts "You own #{@planets.size} planets"
 
     @lost_planets.each do |lost_planet|
       @armada_planets.unshift(lost_planet) unless @armada_planets.include?(lost_planet)

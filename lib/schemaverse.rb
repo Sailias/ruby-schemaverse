@@ -511,10 +511,10 @@ class Schemaverse
       unless ships_to_pop.empty?
         puts "    Need to pop #{ships_to_pop.size} to fight"
 
-        #free_up_ships(ships_to_pop.size)
-        #TradeItem.delete_trades(ships_to_pop.collect(&:id))
-        #@trade_ships = @trade_ships - ships_to_pop
-        #@ships = @ships + ships_to_pop
+        free_up_ships(ships_to_pop.size)
+        TradeItem.delete_trades(ships_to_pop.collect(&:id))
+        @trade_ships = @trade_ships - ships_to_pop
+        @ships = @ships + ships_to_pop
       end
     end
 
