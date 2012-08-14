@@ -71,6 +71,8 @@ module Variables
     my_planets = Planet.my_planets.order("planets.location<->POINT('#{@home.location}') DESC").all if @home
     new_planets = my_planets - @planets
 
+    all_planets = Planet.all
+
     puts "    renaming planets"
     new_planets.each_with_index do |planet, i|
       planet.update_attribute('name', Planet.get_new_planet_name(i.to_s)) unless planet.eql?(Planet.home) || planet.name.include?(USERNAME)
@@ -95,7 +97,9 @@ module Variables
     puts "    populating ship objective data"
     @ships = my_ships
     @ships.select { |s| !s.destination.blank? }.each do |ship|
-      ship.objective = Planet.where("location ~= POINT(?)", ship.destination).first
+      if p = all_planets.select { |p| p.location.eql?(ship.destination) }.first
+        ship.objective = p
+      end
     end
 
     @travelling_ships = @ships.select { |s| s.objective && !s.name.include?("armada") }
@@ -141,7 +145,7 @@ module Variables
       TradeItem.trade_ships(swap_ships)
 
       puts "    populating ship data"
-      TradeItem.delete_trades(trade_items.collect{|ti| ti.descriptor.to_s})
+      TradeItem.delete_trades(trade_items.collect { |ti| ti.descriptor.to_s })
       #@trade.items.where(:id => trade_items.collect(&:id)).destroy_all
 
       # put the trade item into trade ships array

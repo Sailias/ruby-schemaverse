@@ -43,17 +43,21 @@ class Schemaverse
         populate_tic_data
         handle_interior_ships
 
-        if @ships.size > @number_of_total_ships_allowed
+        refuel_ships
+
+        if @ships.size > @number_of_total_ships_allowed / 2
           # stash my ships so there are only 1/2 of the max in play
+          puts "Freeing up ships for this tic!"
           free_up_ships(@ships.size - @number_of_total_ships_allowed + @number_of_total_ships_allowed / 2)
         end
 
         handle_planets_ships
-        refuel_ships
+
         #deploy_travelling_ships
         deploy_armada_groups
         #manage_travelling_ships_actions
 
+        puts "Destroying all trades"
         TradeItem.destroy_all_trades
         @ships += @trade_ships
         @trade_ships = []
@@ -298,18 +302,18 @@ class Schemaverse
   def handle_interior_ships
     # Start killing of ships at planets that in my interior
     @planets.sort_by { |p| Functions.distance_between(p, @home) }.each do |planet|
-      begin
-        #  conquer_planet(planet)
-        #
-        if planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.empty? && @mining_ships.size >= @number_of_miners_allowed
-          #stash_ships_at(planet)
-        else
-          planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.each do |p|
-            @armada_planets.unshift(p) unless @armada_planets.include?(p) || @armada_targets.include?(p)
-          end
-        end
-      rescue
+      #begin
+      #  conquer_planet(planet)
+      #
+      #if planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.empty? && @mining_ships.size >= @number_of_miners_allowed
+      #stash_ships_at(planet)
+      #else
+      planet.closest_planets(30).select { |p| p.conqueror_id != @my_player.id }.each do |p|
+        @armada_planets.unshift(p) unless @armada_planets.include?(p) || @armada_targets.include?(p)
       end
+      #end
+      #rescue
+      #end
     end
   end
 
@@ -322,15 +326,18 @@ class Schemaverse
 
   def refuel_ships
     puts "Checking for armada travelling that are out of fuel"
-    @armada_ships.select { |s| !s.at_destination? && s.current_fuel < s.speed }.group_by(&:destination).to_a.each do |grp|
+
+    ships_to_refuel = []
+    @armada_ships.select { |s| !s.at_destination? && s.current_fuel < s.max_fuel / 2 }.group_by(&:destination).to_a.each do |grp|
       total_fuel_for_group = grp.last.sum(&:max_fuel)
       if @my_player.total_resources >= total_fuel_for_group
-        grp.last.each do |ship|
-          puts "Refueling #{ship.name}"
-          ship.refuel_ship rescue nil
-          @my_player.fuel_reserve -= ship.max_fuel - ship.current_fuel
-        end
+        ships_to_refuel += grp.last
       end
+    end
+
+    unless ships_to_refuel.empty?
+      puts "    refueling #{ships_to_refuel.size}"
+      MyShip.refuel_ships(ships_to_refuel)
     end
 
     ## Ships that are out of fuel that haven't reached their destination
@@ -357,13 +364,17 @@ class Schemaverse
     puts "Number of armada groups: #{@armada_ships.group_by(&:objective).size}"
     if @armada_ships.each_slice(@number_of_ships_in_armada).to_a.size < @number_of_armada_groups
 
-      (@number_of_armada_groups - @armada_ships.each_slice(@number_of_ships_in_armada).to_a.size).times do
+      # For now only create 1 armada group because it takes too long
+      1.times do
+        #(@number_of_armada_groups - @armada_ships.each_slice(@number_of_ships_in_armada).to_a.size).times do
         begin
 
           # Create another group of amada ships if you can
           cost_of_attack_fleet = ((PriceList.ship) +
             (PriceList.defense * 200) +
             (PriceList.attack * 200) +
+            (PriceList.prospecting * 20) +
+            (PriceList.engineering * 80) +
             (Functions.get_numeric_variable('MAX_SHIP_FUEL') / 3) +
             (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 3)
           ) * @number_of_ships_in_armada
@@ -373,6 +384,7 @@ class Schemaverse
           if @my_player.total_resources >= cost_of_attack_fleet
 
             @my_player.convert_fuel_to_money(cost_of_attack_fleet.to_i) if @my_player.balance < cost_of_attack_fleet
+            puts "Number of armada planets: #{@armada_planets.size}"
             planet_to_conquer = @armada_planets.first
             if planet_to_conquer
 
@@ -380,11 +392,15 @@ class Schemaverse
               #@mining_ships.first(@number_of_ships_in_armada).each do |miner_ship|
               #  miner_ship.destroy
               #end
-              free_up_ships(@number_of_ships_in_armada)
+              #free_up_ships(@number_of_ships_in_armada)
               #end
 
               closest_planet_to_objective = planet_to_conquer.closest_planets(1).my_planets.first
+              #create_arr = []
               @number_of_ships_in_armada.times do
+
+                #create_arr << "(#{USERNAME}-armada, 20, 200, 200, 80, POINT#{closest_planet_to_objective.location})"
+
                 begin
                   armada_ship = MyShip.create(
                     :name => "#{USERNAME}-armada",
@@ -395,10 +411,11 @@ class Schemaverse
                     :location => closest_planet_to_objective.location
                   )
 
+
                   if armada_ship.id?
                     puts "New ARMADA SHIP"
                     armada_ship = armada_ship.reload
-                    armada_ship.update_attributes(:action => "ATTACK")
+                    armada_ship.update_attributes(:action => "MINE", :action_target_id => planet_to_conquer.id)
                     armada_ship.upgrade("ATTACK", 200)
                     armada_ship.upgrade("DEFENSE", 200)
                     armada_ship.upgrade("MAX_FUEL", (Functions.get_numeric_variable('MAX_SHIP_FUEL') / 3).to_i)
@@ -421,6 +438,10 @@ class Schemaverse
                   puts e.backtrace
                 end
               end
+
+              #unless create_arr.empty?
+              #  ActiveRecord::Base.connection.execute("INSERT INTO my_ships (name, prospecting, attack, defense, engineering, location VALUES #{create_arr.join(",")}")
+              #end
             else
               break
             end
@@ -483,11 +504,14 @@ class Schemaverse
     puts "managing armada groups"
     @armada_ships.group_by(&:objective).each do |armada_ship_grp|
       begin
-        if armada_ship_grp.last[0].at_destination?
+        #armada_ship_grp.last.each do |armada_ship|
+        #  armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
+        #end
+        if armada_ship_grp.last.select { |as| as.at_destination }.size > 0
 
-          armada_ship_grp.last.each do |armada_ship|
-            armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
-          end
+          #armada_ship_grp.last.each do |armada_ship|
+          #  armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
+          #end
 
           if @planets.include?(armada_ship_grp.first)
             #new_armada_planet = @armada_planets.sort_by { |p| Functions.distance_between(p, armada_ship_grp.last[0]) }.first
@@ -498,7 +522,7 @@ class Schemaverse
               armada_ship_grp.last.each do |armada_ship|
                 if armada_ship.course_control(armada_ship.max_speed, nil, new_armada_planet.location)
                   armada_ship.objective = new_armada_planet
-                  armada_ship.update_attributes(:action => "ATTACK", :action_target_id => nil)
+                  armada_ship.update_attributes(:action => "MINE", :action_target_id => new_armada_planet.id)
                 end
               end
               @armada_planets.delete(new_armada_planet)

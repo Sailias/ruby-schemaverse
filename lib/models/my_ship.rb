@@ -87,6 +87,10 @@ class MyShip < ActiveRecord::Base
     self.class.select("REFUEL_SHIP(#{self.id})").where(:id => self.id).first
   end
 
+  def self.refuel_ships(ships)
+    MyShip.select("REFUEL_SHIP(my_ships.id)").where(:id => ships.collect(&:id))
+  end
+
   def commence_attack(ship_id)
     self.class.select("ATTACK(#{self.id}, #{ship_id})").where(:id => self.id).first
   end
