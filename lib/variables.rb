@@ -48,7 +48,7 @@ module Variables
       @armada_targets << ship.objective unless @armada_planets.include?(ship.objective)
     end
 
-    @objective_planets = Planet.not_my_planets.select("id, name, location, conqueror_id, planets.location<->POINT('#{@home.location}') as distance").order("distance ASC").all
+    #@objective_planets = Planet.not_my_planets.select("id, name, location, conqueror_id, planets.location<->POINT('#{@home.location}') as distance").order("distance ASC").all
 
     @trade_ships = []
 
@@ -65,6 +65,7 @@ module Variables
     puts "loading tic data"
 
     @my_player = MyPlayer.first
+    @my_player.convert_money_to_fuel(@my_player.balance)
 
     puts "    reloading planets"
     my_planets = []
@@ -76,7 +77,7 @@ module Variables
     puts "    renaming planets"
     new_planets.each_with_index do |planet, i|
       planet.update_attribute('name', Planet.get_new_planet_name(i.to_s)) unless planet.eql?(Planet.home) || planet.name.include?(USERNAME)
-      @objective_planets.delete(planet) if @objective_planets.index(planet)
+      #@objective_planets.delete(planet) if @objective_planets.index(planet)
     end
 
     @lost_planets += @planets - my_planets
@@ -84,9 +85,12 @@ module Variables
 
     puts "You own #{@planets.size} planets"
 
-    @lost_planets.each do |lost_planet|
-      @armada_planets.unshift(lost_planet) unless @armada_planets.include?(lost_planet)
-    end
+    @armada_planets = []
+    @armada_targets = []
+
+    #@lost_planets.each do |lost_planet|
+    #  @armada_planets.unshift(lost_planet) unless @armada_planets.include?(lost_planet)
+    #end
 
     @lost_planets = []
 
@@ -104,33 +108,16 @@ module Variables
 
     @travelling_ships = @ships.select { |s| s.objective && !s.name.include?("armada") }
     @armada_ships = @ships.select { |s| s.objective && s.name.include?("armada") }
-
-    #@travelling_ships = @travelling_ships - @lost_ships
-    #@armada_ships = @armada_ships - @lost_ships
     @mining_ships = @ships.select { |s| s.action && s.action.strip.eql?("MINE") && !s.name.include?("armada") && !s.name.include?("traveller") }
 
-
-    #@ships.each do |s|
-    #  s = s.reload rescue nil
-    #  if s
-    #    s.objective = Planet.where("location ~= POINT(?)", s.destination).first unless s.destination.blank?
-    #  end
-    #end
-    #
-    #puts "        for travelling ships"
-    #@travelling_ships.each do |ts|
-    #  ts = @ships.select { |s| s.id == ts.id }.first
-    #end
-    #
-    #puts "        for armada ships"
-    #@armada_ships.each do |as|
-    #  as = @ships.select { |s| s.id == as.id }.first
-    #end
+    @armada_ships.each do |ship|
+      @armada_targets << ship.objective unless @armada_planets.include?(ship.objective)
+    end
 
     # Add the planet back to the start of our objective planets
-    @lost_ships.collect(&:objective).compact.select { |o| o.is_a?(Planet) && !@planets.include?(o) }.each do |planet|
-      @objective_planets << planet unless @objective_planets.include?(planet) || @planets.include?(planet)
-    end
+    #@lost_ships.collect(&:objective).compact.select { |o| o.is_a?(Planet) && !@planets.include?(o) }.each do |planet|
+    #  @objective_planets << planet unless @objective_planets.include?(planet) || @planets.include?(planet)
+    #end
 
     puts "    loading ships in range"
     @ships_in_range = ShipsInRange.all

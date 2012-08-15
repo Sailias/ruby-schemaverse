@@ -40,37 +40,40 @@ class Schemaverse
         puts "Starting new Tic"
         last_tic = @tic
 
-        TradeItem.destroy_all_trades
-        @trade_ships = []
+        if TradeItem.destroy_all_trades
+          #@trade_ships = []
 
-        populate_tic_data
-        handle_interior_ships
+          populate_tic_data
+          handle_interior_ships
 
-        refuel_ships
+          refuel_ships
 
-        if @ships.size > @number_of_total_ships_allowed / 2
-          # stash my ships so there are only 1/2 of the max in play
-          puts "Freeing up ships for this tic!"
-          free_up_ships(@ships.size - @number_of_total_ships_allowed + (@number_of_total_ships_allowed / 2))
+          continue = true
+
+          if @ships.size > @number_of_total_ships_allowed / 2
+            # stash my ships so there are only 1/2 of the max in play
+            puts "Freeing up ships for this tic!"
+            continue = TradeItem.trade_number_of_ships(@ships.size - @number_of_total_ships_allowed + (@number_of_total_ships_allowed / 2))
+          end
+
+          if continue
+            handle_planets_ships
+
+            #deploy_travelling_ships
+            deploy_armada_groups
+            #manage_travelling_ships_actions
+
+            puts "Destroying all trades"
+            TradeItem.destroy_all_trades
+          end
+
+          manage_armada_ships_actions
+          #handle_lost_planets
+          #manage_ships_in_range
+          #attack_ships
+          #repair_ships
+
         end
-
-        handle_planets_ships
-
-        #deploy_travelling_ships
-        deploy_armada_groups
-        #manage_travelling_ships_actions
-
-        puts "Destroying all trades"
-        TradeItem.destroy_all_trades
-        @ships += @trade_ships
-        @trade_ships = []
-
-        manage_armada_ships_actions
-        #handle_lost_planets
-        #manage_ships_in_range
-        attack_ships
-        repair_ships
-
       end
     end
   end
@@ -102,14 +105,14 @@ class Schemaverse
   end
 
   def get_create_count_for_planet(planet)
-    miners_to_create = (planet.mine_limit - planet.ships.size) - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("miner") }.size
-    defenders_to_create = (20 - planet.ships.defenders.size) - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("defender") }.size
+    miners_to_create = planet.mine_limit - @ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("miner") }.size
+    defenders_to_create = 20 - @ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("defender") }.size
     return miners_to_create + defenders_to_create
   end
 
   def create_ships_for_planet(planet)
-    miners_to_create = (planet.mine_limit - planet.ships.size) - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("miner") }.size
-    defenders_to_create = (20 - planet.ships.defenders.size) - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("defender") }.size
+    miners_to_create = (planet.mine_limit - @ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("miner") }.size) / 10
+    defenders_to_create = (20 - @ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("defender") }.size) / 10
 
     puts "#{planet.name} => MINERS TO CREATE: #{miners_to_create}"
     if miners_to_create > 0
@@ -119,7 +122,7 @@ class Schemaverse
       #  free_up_ships((@ships.size + miners_to_create) - @number_of_total_ships_allowed)
       #end
 
-      @ships = @ships + MyShip.create_ships_at(planet.mine_limit - planet.ships.size - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?('miner') }.size, planet, 'miner', 480, 0, 0, 0, 'MINE', planet.id)
+      @ships = @ships + MyShip.create_ships_at(miners_to_create.to_i, planet, 'miner', 480, 0, 0, 0, 'MINE', planet.id)
 
     end
 
@@ -131,7 +134,7 @@ class Schemaverse
       #  free_up_ships((@ships.size + defenders_to_create) - @number_of_total_ships_allowed)
       #end
 
-      @ships = @ships + MyShip.create_ships_at(20 - planet.ships.defenders.size - @trade_ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?('defender') }.size, planet, 'defender', 0, 200, 200, 80, nil, nil)
+      @ships = @ships + MyShip.create_ships_at(defenders_to_create.to_i, planet, 'defender', 0, 200, 200, 80, nil, nil)
 
     end
   end
@@ -144,7 +147,7 @@ class Schemaverse
       #my_ships_with_enemy_ships = @ships_in_range.select { |s| !s.player_id.zero? }.collect(&:ship_in_range_of)
       #ships_to_stash = @ships.select { |s| !my_ships_with_enemy_ships.include?(s.id) && !s.name.include?('armada') }.sort_by { |s| rand(1000) }.first(n)
       ships_to_stash = @ships.select { |s| !s.name.include?('armada') }.first(n)
-      stash_ships(ships_to_stash)
+      return stash_ships(ships_to_stash)
     end
   end
 
@@ -154,8 +157,6 @@ class Schemaverse
 
   def stash_ships(ships)
     TradeItem.trade_ships(ships)
-    @trade_ships += ships
-    @ships = @ships - ships
   end
 
   ###########

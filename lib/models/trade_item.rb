@@ -9,26 +9,44 @@ class TradeItem < ActiveRecord::Base
   end
 
   def self.trade_ships(ships)
+    success = true
     begin
       ship_ids = ships.collect(&:id).join(",")
       MyShip.where(:id => ship_ids).update_all("action=null", "1=1")
       ActiveRecord::Base.connection.execute("INSERT INTO trade_items (trade_id, player_id, description_code, quantity, descriptor) SELECT #{MyTrade.first.id}, #{MyPlayer.first.id}, 'SHIP', 1, my_ships.id FROM my_ships WHERE id IN (#{ship_ids})")
-      #return TradeItem.last(ships.size)
+        #return TradeItem.last(ships.size)
     rescue
+      success = false
+    end
+    return success
+  end
+
+  def self.trade_number_of_ships(n)
+    success = true
+    begin
+      ActiveRecord::Base.connection.execute("INSERT INTO trade_items (trade_id, player_id, description_code, quantity, descriptor) SELECT #{MyTrade.first.id}, #{MyPlayer.first.id}, 'SHIP', 1, my_ships.id FROM my_ships WHERE name NOT LIKE '%armada%' LIMIT #{n}")
+    rescue
+      success = false
     end
   end
 
   def self.delete_trades(ship_ids)
     begin
       ActiveRecord::Base.connection.execute("DELETE FROM trade_items WHERE descriptor::integer IN (#{ship_ids.join(",")})")
-      MyShip.where(:id => ship_ids).update_all("action='MINE'", "1=1")
+        #MyShip.where(:id => ship_ids).update_all("action='MINE'", "1=1")
     rescue
     end
   end
 
   def self.destroy_all_trades
-    ids = TradeItem.all.collect(&:descriptor)
-    ActiveRecord::Base.connection.execute("DELETE FROM trade_items")
-    MyShip.where(:id => ids).update_all("action='MINE'", "1=1")
+    val = true
+    begin
+      #ids = TradeItem.all.collect(&:descriptor)
+      ActiveRecord::Base.connection.execute("DELETE FROM trade_items")
+      #MyShip.where(:id => ids).update_all("action='MINE'", "1=1")
+    rescue
+      val = false
+    end
+    return val
   end
 end
