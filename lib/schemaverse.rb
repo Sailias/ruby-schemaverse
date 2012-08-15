@@ -40,6 +40,8 @@ class Schemaverse
         puts "Starting new Tic"
         last_tic = @tic
 
+        TradeItem.destroy_all_trades
+
         populate_tic_data
         handle_interior_ships
 
