@@ -41,6 +41,7 @@ class Schemaverse
         last_tic = @tic
 
         TradeItem.destroy_all_trades
+        @trade_ships = []
 
         populate_tic_data
         handle_interior_ships
