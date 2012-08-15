@@ -54,7 +54,7 @@ module Variables
 
     puts "populating trade data"
     @trade = MyTrade.create_trade
-    populate_trade_data
+    #populate_trade_data
 
     puts "loading ships in range"
     @ships_in_range = ShipsInRange.all
