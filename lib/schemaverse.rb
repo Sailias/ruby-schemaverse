@@ -138,8 +138,9 @@ class Schemaverse
 
   def free_up_ships(n = 0)
     if n > 0
-      my_ships_with_enemy_ships = @ships_in_range.select { |s| !s.player_id.zero? }.collect(&:ship_in_range_of)
-      ships_to_stash = @ships.select { |s| !my_ships_with_enemy_ships.include?(s.id) && !s.name.include?('armada') }.sort_by { |s| rand(1000) }.first(n)
+      #my_ships_with_enemy_ships = @ships_in_range.select { |s| !s.player_id.zero? }.collect(&:ship_in_range_of)
+      #ships_to_stash = @ships.select { |s| !my_ships_with_enemy_ships.include?(s.id) && !s.name.include?('armada') }.sort_by { |s| rand(1000) }.first(n)
+      ships_to_stash = @ships.select { |s| !s.name.include?('armada') }.first(n)
       stash_ships(ships_to_stash)
     end
   end
