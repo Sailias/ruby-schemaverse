@@ -48,7 +48,7 @@ class Schemaverse
         if @ships.size > @number_of_total_ships_allowed / 2
           # stash my ships so there are only 1/2 of the max in play
           puts "Freeing up ships for this tic!"
-          free_up_ships(@ships.size - @number_of_total_ships_allowed + @number_of_total_ships_allowed / 2)
+          free_up_ships(@ships.size - @number_of_total_ships_allowed + (@number_of_total_ships_allowed / 2))
         end
 
         handle_planets_ships
