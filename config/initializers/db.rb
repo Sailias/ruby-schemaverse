@@ -4,5 +4,9 @@ Dir.glob(File.join('lib', 'models', '*.rb')).each do |file|
   require_relative File.join("..", "..", file)
 end
 
+Dir.glob(File.join('lib', 'models', 'tasks', '*.rb')).each do |file|
+  require_relative File.join("..", "..", file)
+end
+
 require 'redis'
 require 'redis-namespace'

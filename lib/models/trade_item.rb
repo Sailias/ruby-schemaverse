@@ -22,12 +22,12 @@ class TradeItem < ActiveRecord::Base
   end
 
   def self.trade_number_of_ships(n)
-    success = true
-    begin
-      ActiveRecord::Base.connection.execute("INSERT INTO trade_items (trade_id, player_id, description_code, quantity, descriptor) SELECT #{MyTrade.first.id}, #{MyPlayer.first.id}, 'SHIP', 1, my_ships.id FROM my_ships WHERE name NOT LIKE '%armada%' LIMIT #{n}")
-    rescue
-      success = false
-    end
+    #success = true
+    #begin
+      ActiveRecord::Base.connection.execute("INSERT INTO trade_items (trade_id, player_id, description_code, quantity, descriptor) SELECT #{MyTrade.first.id}, #{MyPlayer.first.id}, 'SHIP', 1, my_ships.id FROM my_ships WHERE name NOT LIKE '%traveller%' LIMIT #{n}") if n > 0
+    #rescue
+    #  success = false
+    #end
   end
 
   def self.delete_trades(ship_ids)

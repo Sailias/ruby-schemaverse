@@ -9,6 +9,16 @@ require 'rake/clean'
 require 'rake/gempackagetask'
 require 'rake/rdoctask'
 require 'rake/testtask'
+require 'resque/tasks'
+path = File.expand_path("../", __FILE__)
+
+ENV['ENV'] = 'test'
+require "#{path}/config/initializers/environment.rb"
+
+db_config = YAML::load(File.open('config/database.yml'))
+db_config.merge!(:username => USERNAME, :password => PASSWORD)
+Resque.after_fork = Proc.new { ActiveRecord::Base.establish_connection(db_config) }
+
 
 spec = Gem::Specification.new do |s|
   s.name = 'schemaverse'
@@ -43,3 +53,5 @@ end
 Rake::TestTask.new do |t|
   t.test_files = FileList['test/**/*.rb']
 end
+
+

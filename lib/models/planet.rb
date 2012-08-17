@@ -6,7 +6,7 @@ class Planet < ActiveRecord::Base
   scope :with_my_ships, :joins => "INNER JOIN my_ships ON planets.location_x = my_ships.location_x AND planets.location_y = my_ships.location_y "
 
   def self.home
-    self.where(:name => self.my_home_name).first
+    self.where(:name => self.my_home_name, :conqueror_id => MyPlayer.first.id).first
   end
 
   def self.not_home

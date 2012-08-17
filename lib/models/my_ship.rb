@@ -5,7 +5,7 @@ class MyShip < ActiveRecord::Base
   has_many :planets_in_range, :foreign_key => "ship"
   has_many :ships_in_range, :foreign_key => "ship_in_range_of"
 
-  scope :with_name_like, lambda{|n|
+  scope :with_name_like, lambda { |n|
     where("name LIKE ?", "%#{n}%")
   }
 
@@ -16,16 +16,11 @@ class MyShip < ActiveRecord::Base
   attr_accessor :queue
 
   def self.mine_all_planets
-    # TODO: This doesn't work
-    sql = "UPDATE my_ships SET
-		  action='MINE',
-		  action_target_id=planets_in_range.planet
-	   FROM planets_in_range
-	   WHERE my_ships.id=planets_in_range.ship;"
+    sql = "UPDATE my_ships SET action='MINE', action_target_id=planets_in_range.planet FROM planets_in_range WHERE my_ships.id=planets_in_range.ship AND my_ships.name NOT LIKE '%defender%'"
     ActiveRecord::Base.connection.update_sql(sql)
   end
 
-  def self.create_ships_at(number, planet, name_type, prospecting, attack, defense, engineering, action, action_target_id)
+  def self.create_ships_at(number, planet, name_type, prospecting, attack, defense, engineering, action, action_target_id, max_speed = 0, max_fuel = 0)
     ships = []
     return ships if number < 1
 
@@ -33,44 +28,51 @@ class MyShip < ActiveRecord::Base
     total_resources = player.total_resources
     balance = player.balance
 
-    cost_of_ship = PriceList.ship + (PriceList.prospecting * prospecting) + (PriceList.attack * attack) + (PriceList.defense * defense) + (PriceList.engineering * engineering)
+    cost_of_ship = PriceList.ship + (PriceList.prospecting * prospecting) + (PriceList.attack * attack) + (PriceList.defense * defense) + (PriceList.engineering * engineering) + (PriceList.max_speed * max_speed) + (PriceList.max_fuel * max_fuel)
     loop_num = (total_resources / cost_of_ship).to_i >= number ? number : (total_resources / cost_of_ship).to_i
     total_cost = cost_of_ship * loop_num
 
     loop_num.times do
-      begin
-        if balance < total_cost
-          player.convert_fuel_to_money(total_cost - balance)
-        end
-
-        # If you can build another miner at this planet, do so
-        ship = planet.ships.create(
-          :name => "#{planet.name}-#{name_type}",
-          :prospecting => 5,
-          :attack => 5,
-          :defense => 5,
-          :engineering => 5,
-          :location => planet.location
-        )
-
-        if ship.id
-          ship = ship.reload
-          ship.update_attributes(:action => action, :action_target_id => action_target_id)
-          ship.upgrade("PROSPECTING", prospecting) if prospecting > 0
-          ship.upgrade("ATTACK", attack) if attack > 0
-          ship.upgrade("DEFENSE", defense) if defense > 0
-          ship.upgrade("ENGINEERING", engineering) if engineering > 0
-          ships << ship
-          puts "Created a ship for #{planet.name}"
-        else
-          # Break out of this loop if the ship could not be created
-          puts "ERROR CREATING SHIP"
-          break
-        end
-      rescue Exception => e
-        puts e.message
+      if balance < cost_of_ship
+        player.convert_fuel_to_money(cost_of_ship - balance)
       end
-    end unless total_resources < total_cost
+
+      # If you can build another miner at this planet, do so
+      ship = planet.ships.create(
+        :name => "#{planet.name}-#{name_type}",
+        :prospecting => 5,
+        :attack => 5,
+        :defense => 5,
+        :engineering => 5,
+        :location => planet.location
+      )
+
+      if ship.id
+        ship = ship.reload
+        ship.update_attributes(:action => action, :action_target_id => action_target_id)
+
+        select_statements = []
+        select_statements << "UPGRADE(id, 'PROSPECTING', #{prospecting})" if prospecting > 0
+        select_statements << "UPGRADE(id, 'ATTACK', #{attack})" if attack > 0
+        select_statements << "UPGRADE(id, 'DEFENSE', #{defense})" if defense > 0
+        select_statements << "UPGRADE(id, 'ENGINEERING', #{engineering})" if engineering > 0
+        select_statements << "UPGRADE(id, 'MAX_FUEL', #{max_fuel})" if max_fuel > 0
+        select_statements << "UPGRADE(id, 'MAX_SPEED', #{max_speed})" if max_speed > 0
+        MyShip.select(select_statements.join(",")).where(:id => ship.id).first unless select_statements.empty?
+        #ship.upgrade("PROSPECTING", prospecting) if prospecting > 0
+        #ship.upgrade("ATTACK", attack) if attack > 0
+        #ship.upgrade("DEFENSE", defense) if defense > 0
+        #ship.upgrade("ENGINEERING", engineering) if engineering > 0
+        #ship.upgrade("MAX_FUEL", max_fuel) if max_fuel > 0
+        #ship.upgrade("MAX_SPEED", max_speed) if max_speed > 0
+        ships << ship
+        puts "Created a ship #{ship.name} for #{planet.name}"
+      else
+        # Break out of this loop if the ship could not be created
+        puts "ERROR CREATING SHIP"
+        break
+      end
+    end
     return ships
   end
 
@@ -88,7 +90,7 @@ class MyShip < ActiveRecord::Base
   end
 
   def self.refuel_ships(ships)
-    MyShip.select("REFUEL_SHIP(my_ships.id)").where(:id => ships.collect(&:id)).all
+    MyShip.select("REFUEL_SHIP(my_ships.id), POINT(location) <-> POINT(destination) as distance").where(:id => ships.collect(&:id)).order("distance").all
   end
 
   def commence_attack(ship_id)
