@@ -16,11 +16,14 @@ class MyShip < ActiveRecord::Base
   attr_accessor :queue
 
   def self.mine_all_planets
-    sql = "UPDATE my_ships SET action='MINE', action_target_id=planets_in_range.planet FROM planets_in_range WHERE my_ships.id=planets_in_range.ship AND my_ships.name NOT LIKE '%defender%'"
-    ActiveRecord::Base.connection.update_sql(sql)
+    begin
+      sql = "UPDATE my_ships SET action='MINE', action_target_id=planets_in_range.planet FROM planets_in_range WHERE my_ships.id=planets_in_range.ship AND my_ships.name NOT LIKE '%defender%'"
+      ActiveRecord::Base.connection.update_sql(sql)
+    rescue
+    end
   end
 
-  def self.create_ships_at(number, planet, name_type, prospecting, attack, defense, engineering, action, action_target_id, max_speed = 0, max_fuel = 0)
+  def self.create_ships_at(number, planet, name_type, prospecting, attack, defense, engineering, action, action_target_id, max_speed = 0, max_fuel = 0, range=0)
     ships = []
     return ships if number < 1
 
@@ -28,7 +31,15 @@ class MyShip < ActiveRecord::Base
     total_resources = player.total_resources
     balance = player.balance
 
-    cost_of_ship = PriceList.ship + (PriceList.prospecting * prospecting) + (PriceList.attack * attack) + (PriceList.defense * defense) + (PriceList.engineering * engineering) + (PriceList.max_speed * max_speed) + (PriceList.max_fuel * max_fuel)
+    cost_of_ship = PriceList.ship +
+      (PriceList.prospecting * prospecting) +
+      (PriceList.attack * attack) +
+      (PriceList.defense * defense) +
+      (PriceList.engineering * engineering) +
+      (PriceList.max_speed * max_speed) +
+      (PriceList.max_fuel * max_fuel) +
+      (PriceList.range * range)
+
     loop_num = (total_resources / cost_of_ship).to_i >= number ? number : (total_resources / cost_of_ship).to_i
     total_cost = cost_of_ship * loop_num
 
@@ -58,6 +69,11 @@ class MyShip < ActiveRecord::Base
         select_statements << "UPGRADE(id, 'ENGINEERING', #{engineering})" if engineering > 0
         select_statements << "UPGRADE(id, 'MAX_FUEL', #{max_fuel})" if max_fuel > 0
         select_statements << "UPGRADE(id, 'MAX_SPEED', #{max_speed})" if max_speed > 0
+        select_statements << "UPGRADE(id, 'RANGE', #{range})" if range > 0
+
+        if balance < cost_of_ship
+          player.convert_fuel_to_money(cost_of_ship - balance)
+        end
         MyShip.select(select_statements.join(",")).where(:id => ship.id).first unless select_statements.empty?
         #ship.upgrade("PROSPECTING", prospecting) if prospecting > 0
         #ship.upgrade("ATTACK", attack) if attack > 0

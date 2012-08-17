@@ -43,28 +43,28 @@ class Schemaverse
         puts "Starting new Tic"
         last_tic = @tic
 
-        if TradeItem.destroy_all_trades && @home
+        if TradeItem.destroy_all_trades
           #@trade_ships = []
 
           populate_tic_data
           handle_interior_ships
+          handle_planets_ships if @home
 
           if @ships.size > @number_of_total_ships_allowed - 500
             # stash my ships so there are only 1/2 of the max in play
             puts "Freeing up ships for this tic!"
-            Resque.enqueue(StashShips, @ships.size - @number_of_total_ships_allowed + (@number_of_total_ships_allowed / 2))
+            Resque.enqueue(StashShips,
+                @ships.size - @number_of_total_ships_allowed + (@number_of_total_ships_allowed / 2),
+                @planets_to_create_objects
+            )
           end
 
-          handle_planets_ships
           refuel_ships
-          deploy_travelling_ships
+          deploy_travelling_ships if @home
+
           #if @tic < 100
           #deploy_armada_groups
           manage_travelling_ships_actions
-
-          puts "Destroying all trades"
-          Resque.enqueue(UnstashShips)
-
           manage_armada_ships_actions
           #handle_lost_planets
           #manage_ships_in_range
@@ -121,7 +121,8 @@ class Schemaverse
     end
 
     puts "#{planet.name} => MINERS TO CREATE: #{miners_to_create}, DEFENDERS TO CREATE: #{defenders_to_create}, REPAIRERS: #{repairers_to_create}"
-    Resque.enqueue(CreateShipsAtPlanet, planet.id, miners_to_create, defenders_to_create, repairers_to_create) if miners_to_create > 0 || defenders_to_create > 0 || repairers_to_create > 0
+    @planets_to_create_objects << [planet.id, miners_to_create, defenders_to_create, repairers_to_create] if miners_to_create > 0 || defenders_to_create > 0 || repairers_to_create > 0
+
   end
 
   ######## TRADE METHODS
@@ -396,6 +397,7 @@ class Schemaverse
         if travelling_ship.at_destination?
           if travelling_ship.objective.is_a?(Planet)
             if @planets.include?(travelling_ship.objective) || travelling_ship.ships_in_range.size > 0
+              puts "At planet #{travelling_ship.objective.name} => Ships in Range #{travelling_ship.ships_in_range.size}"
               # Lets move this ship to another planet!
               #new_planet = next_expand_planet(0, travelling_ship)
               new_planet = Planet.not_my_planets.
@@ -522,7 +524,7 @@ class Schemaverse
     @ships_in_range.select { |s| !s.player_id.zero? }.each do |sir|
       next if attacking_ships.collect(&:id).include?(sir.ship_in_range_of)
       begin
-        attack_ship = @ships.select { |s| s.id.eql?(sir.ship_in_range_of) && !s.name.include?('repairer') }.first
+        attack_ship = @ships.select { |s| s.id.eql?(sir.ship_in_range_of) && ["ATTACK"].include?(s.action.strip) }.first
         if attack_ship
           attacking_ships << attack_ship
           attack_ship.commence_attack(sir.id)
@@ -535,10 +537,12 @@ class Schemaverse
   def repair_ships
     # Repair ships
     puts "Checking for ships to repair"
+    repairing_ships = []
     @ships.select { |s| s.current_health < 100 }.each do |hurt_ship|
       begin
-        @ships.select { |s| Functions.distance_between(s, hurt_ship) <= s.range && !s.eql?(hurt_ship) }.each do |repair_ship|
+        @ships.select { |s| Functions.distance_between(s, hurt_ship) <= s.range && !s.eql?(hurt_ship) && s.action.strip.eql?("REPAIR") && !repairing_ships.include?(s)}.each do |repair_ship|
           repair_ship.repair(hurt_ship.id)
+          repairing_ships << repair_ship
         end
       rescue
       end

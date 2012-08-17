@@ -55,7 +55,10 @@ module Variables
       @armada_targets << ship.objective unless @armada_planets.include?(ship.objective)
     end
 
-    @objective_planets = Planet.not_my_planets.select("id, name, location, conqueror_id, planets.location<->POINT('#{@home.location}') as distance").order("distance ASC").all
+    @planets_to_create_objects = []
+
+    @objective_planets = []
+    #@objective_planets = Planet.not_my_planets.select("id, name, location, conqueror_id, planets.location<->POINT('#{@home.location}') as distance").order("distance ASC").all
 
     @trade_ships = []
 
@@ -76,13 +79,16 @@ module Variables
       @my_player = MyPlayer.first
       @my_player.convert_money_to_fuel(@my_player.balance)
 
+      @planets_to_create_objects = []
+
       puts "    reloading planets"
       my_planets = []
       my_planets = Planet.my_planets.order("planets.location<->POINT('#{@home.location}') DESC").all if @home
       new_planets = my_planets - @planets
 
       all_planets = Planet.all
-      @objective_planets = Planet.not_my_planets.select("id, name, location, conqueror_id, planets.location<->POINT('#{@home.location}') as distance").order("distance ASC").all
+      @objective_planets = []
+      #@objective_planets = Planet.not_my_planets.select("id, name, location, conqueror_id, planets.location<->POINT('#{@home.location}') as distance").order("distance ASC").all
 
       puts "    renaming planets"
       new_planets.each_with_index do |planet, i|
