@@ -2,6 +2,8 @@ class UnstashShips
   @queue = :unstash_ships
 
   def self.perform
-    TradeItem.destroy_all_trades
+    unless TradeItem.destroy_all_trades
+      Resque.enqueue(UnstashShips)
+    end
   end
 end

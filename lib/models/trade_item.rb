@@ -43,8 +43,11 @@ class TradeItem < ActiveRecord::Base
     val = true
     begin
       #ids = TradeItem.all.collect(&:descriptor)
-      ActiveRecord::Base.connection.execute("DELETE FROM trade_items")
-      #MyShip.where(:id => ids).update_all("action='MINE'", "1=1")
+      (TradeItem.count / 1000).to_i.times do
+        ActiveRecord::Base.connection.execute("DELETE FROM trade_items WHERE id IN(SELECT id FROM trade_items LIMIT 1000)")
+      end
+        #ActiveRecord::Base.connection.execute("DELETE FROM trade_items")
+        #MyShip.where(:id => ids).update_all("action='MINE'", "1=1")
     rescue
       val = false
     end

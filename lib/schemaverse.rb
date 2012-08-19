@@ -12,67 +12,77 @@ class Schemaverse
     set_up_variables
 
     while true
-      # Adding cool names to my planets
-      @tic = TicSeq.first.last_value
-      @round = RoundSeq.first.last_value
-      last_round ||= @round
+      begin
+        # Adding cool names to my planets
+        @tic = TicSeq.first.last_value
+        @round = RoundSeq.first.last_value
+        last_round ||= @round
 
-      unless last_round.eql?(@round)
-        last_round = @round
-        puts "A NEW ROUND HAS BEGUN!!"
-        # RESET EVERYTHING
+        unless last_round.eql?(@round)
+          last_round = @round
+          puts "A NEW ROUND HAS BEGUN!!"
+          # RESET EVERYTHING
 
-        # Destroy all but 30 ships if there are some already made
-        puts "A new round has begun"
-        (MyShip.all - MyShip.first(30)).each do |ship|
-          ship.destroy
-        end
-
-        determine_home
-
-        # Make all existing ships mine home
-        MyShip.all.each do |s|
-          s.update_attribute("action_target_id", @home.id)
-        end
-        set_up_variables
-      end
-
-      if last_tic != @tic
-        #sleep(45) # Wait 45 seconds into each round for the data to propagate
-        determine_home
-        puts "Starting new Tic"
-        last_tic = @tic
-
-        if TradeItem.destroy_all_trades
-          #@trade_ships = []
-
-          populate_tic_data
-          handle_interior_ships
-          handle_planets_ships if @home
-
-          if @ships.size > @number_of_total_ships_allowed - 500
-            # stash my ships so there are only 1/2 of the max in play
-            puts "Freeing up ships for this tic!"
-            Resque.enqueue(StashShips,
-                @ships.size - @number_of_total_ships_allowed + (@number_of_total_ships_allowed / 2),
-                @planets_to_create_objects
-            )
+          # Destroy all but 30 ships if there are some already made
+          puts "A new round has begun"
+          (MyShip.all - MyShip.first(30)).each do |ship|
+            ship.destroy
           end
 
-          refuel_ships
-          deploy_travelling_ships if @home
+          determine_home
 
-          #if @tic < 100
-          #deploy_armada_groups
-          manage_travelling_ships_actions
-          manage_armada_ships_actions
-          #handle_lost_planets
-          #manage_ships_in_range
-          attack_ships
-          repair_ships
-          MyShip.mine_all_planets
-
+          # Make all existing ships mine home
+          MyShip.all.each do |s|
+            s.update_attribute("action_target_id", @home.id)
+          end
+          set_up_variables
         end
+
+        if last_tic != @tic
+          #sleep(45) # Wait 45 seconds into each round for the data to propagate
+          determine_home
+          puts "Starting new Tic"
+          last_tic = @tic
+
+          if TradeItem.destroy_all_trades
+            #@trade_ships = []
+
+            populate_tic_data
+            handle_interior_ships
+            handle_planets_ships if @home
+
+            if @ships.size > @number_of_total_ships_allowed - 500
+              # stash my ships so there are only 1/2 of the max in play
+              puts "Freeing up ships for this tic!"
+              Resque.enqueue(StashShips,
+                             @ships.size - @number_of_total_ships_allowed + (@number_of_total_ships_allowed / 2),
+                             @planets_to_create_objects
+              )
+            else
+              @planets_to_create_objects.each do |arr|
+                Resque.enqueue(CreateShipsAtPlanet, arr[0], arr[1], arr[2], arr[3])
+              end
+            end
+
+            refuel_ships
+            deploy_travelling_ships if @home
+
+            #if @tic < 100
+            #deploy_armada_groups
+            manage_travelling_ships_actions
+            manage_armada_ships_actions
+            #handle_lost_planets
+            #manage_ships_in_range
+            attack_ships
+            repair_ships
+            MyShip.mine_all_planets
+          else
+            Resque.enqueue(UnstashShips)
+          end
+        end
+      rescue Exception => e
+        puts e.message
+        puts e.backtrace
       end
     end
   end
@@ -339,8 +349,8 @@ class Schemaverse
 
   def deploy_travelling_ships
     # Expand to new planets based on tic
-    if @travelling_ships.size <= @tic / 3 && @travelling_ships.size < @number_of_travelling_ships
-      ((@tic / 3) - @travelling_ships.size).to_i.times do |i|
+    if @travelling_ships.size <= @tic / 2 && @travelling_ships.size < @number_of_travelling_ships
+      ((@tic / 2) - @travelling_ships.size).to_i.times do |i|
         planet_to_conquer = Planet.
           not_my_planets.
           select("id, POINT(location) <-> POINT('#{@home.location}') as distance, location").
@@ -540,7 +550,7 @@ class Schemaverse
     repairing_ships = []
     @ships.select { |s| s.current_health < 100 }.each do |hurt_ship|
       begin
-        @ships.select { |s| Functions.distance_between(s, hurt_ship) <= s.range && !s.eql?(hurt_ship) && s.action.strip.eql?("REPAIR") && !repairing_ships.include?(s)}.each do |repair_ship|
+        @ships.select { |s| Functions.distance_between(s, hurt_ship) <= s.range && !s.eql?(hurt_ship) && s.action.strip.eql?("REPAIR") && !repairing_ships.include?(s) }.each do |repair_ship|
           repair_ship.repair(hurt_ship.id)
           repairing_ships << repair_ship
         end
