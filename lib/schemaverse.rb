@@ -127,7 +127,7 @@ class Schemaverse
     repairers_to_create = 0
     if @tic > 25
       defenders_to_create = (20 - @ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("defender") }.size)
-      repairers_to_create = (20 - @ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("repairer") }.size)
+      repairers_to_create = (5 - @ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("repairer") }.size)
     end
 
     puts "#{planet.name} => MINERS TO CREATE: #{miners_to_create}, DEFENDERS TO CREATE: #{defenders_to_create}, REPAIRERS: #{repairers_to_create}"
@@ -529,19 +529,20 @@ class Schemaverse
   end
 
   def attack_ships
-    puts "Checking for ships to attack"
-    attacking_ships = []
-    @ships_in_range.select { |s| !s.player_id.zero? }.each do |sir|
-      next if attacking_ships.collect(&:id).include?(sir.ship_in_range_of)
-      begin
-        attack_ship = @ships.select { |s| s.id.eql?(sir.ship_in_range_of) && ["ATTACK"].include?(s.action.strip) }.first
-        if attack_ship
-          attacking_ships << attack_ship
-          attack_ship.commence_attack(sir.id)
-        end
-      rescue
-      end
-    end
+    #puts "Checking for ships to attack"
+    #attacking_ships = []
+    #@ships_in_range.select { |s| !s.player_id.zero? }.each do |sir|
+    #  next if attacking_ships.collect(&:id).include?(sir.ship_in_range_of)
+    #  begin
+    #    attack_ship = @ships.select { |s| s.id.eql?(sir.ship_in_range_of) && ["ATTACK"].include?(s.action.strip) }.first
+    #    if attack_ship
+    #      attacking_ships << attack_ship
+    #      attack_ship.commence_attack(sir.id)
+    #    end
+    #  rescue
+    #  end
+    #end
+    ShipsInRange.select("ATTACK(ships_in_range.ship_in_range_of, MIN(ships_in_range.id))").joins(:my_ship).where("my_ships.name NOT LIKE '%repairer%'").group("ships_in_range.ship_in_range_of").all
   end
 
   def repair_ships
