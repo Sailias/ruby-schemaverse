@@ -67,7 +67,6 @@ DEPENDENCIES
   activerecord-postgresql-adapter
   activerecord_url_connections
   georuby
-  pg (= 0.9.0)
   pry (~> 0.9.10)
   rake
   redis
