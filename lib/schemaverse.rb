@@ -323,13 +323,13 @@ class Schemaverse
     puts "Checking for armada travelling that are out of fuel"
 
     ships_to_refuel = []
-    #@armada_ships.select { |s| !s.at_destination? && s.current_fuel < s.speed }.group_by(&:destination).to_a.each do |grp|
-    #  total_fuel_for_group = grp.last.sum { |s| s.max_fuel - s.current_fuel }
-    #  if @my_player.total_resources >= total_fuel_for_group
-    #    ships_to_refuel += grp.last
-    #    @my_player.fuel_reserve -= total_fuel_for_group
-    #  end
-    #end
+    @armada_ships.select { |s| !s.at_destination? && s.current_fuel < s.speed }.group_by(&:destination).to_a.each do |grp|
+      total_fuel_for_group = grp.last.sum { |s| s.max_fuel - s.current_fuel }
+      if @my_player.total_resources >= total_fuel_for_group
+        ships_to_refuel += grp.last
+        @my_player.fuel_reserve -= total_fuel_for_group
+      end
+    end
 
     #if @tic < 100
     puts "Checking for ships travelling that are out of fuel"
