@@ -349,8 +349,8 @@ class Schemaverse
 
   def deploy_travelling_ships
     # Expand to new planets based on tic
-    if @travelling_ships.size <= @tic / 2 && @travelling_ships.size < @number_of_travelling_ships
-      ((@tic / 2) - @travelling_ships.size).to_i.times do |i|
+    if @travelling_ships.size < @number_of_travelling_ships
+      (@number_of_travelling_ships - @travelling_ships.size).to_i.times do |i|
         planet_to_conquer = Planet.
           not_my_planets.
           select("id, POINT(location) <-> POINT('#{@home.location}') as distance, location").
