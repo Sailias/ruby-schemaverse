@@ -68,7 +68,7 @@ class Schemaverse
             deploy_travelling_ships if @home
 
             #if @tic < 100
-            #deploy_armada_groups
+            deploy_armada_groups
             manage_travelling_ships_actions
             manage_armada_ships_actions
             #handle_lost_planets
