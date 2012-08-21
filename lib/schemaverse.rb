@@ -293,6 +293,7 @@ class Schemaverse
 
 
   def handle_interior_ships
+    puts "handling interior planets"
     # Start killing of ships at planets that in my interior
     @planets.sort_by { |p| Functions.distance_between(p, @home) }.each do |planet|
       #begin

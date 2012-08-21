@@ -28,8 +28,11 @@ module Variables
     @travelling_ships = []
     @armada_ships = []
 
+    all_planets = Planet.all
     @ships.select { |s| !s.destination.blank? }.each do |ship|
-      ship.objective = Planet.where("location ~= POINT(?)", ship.destination).first
+      if p = all_planets.select { |p| p.location.eql?(ship.destination) }.first
+        ship.objective = p
+      end
     end
 
     @travelling_ships = @ships.select { |s| s.objective && !s.name.include?("armada") }

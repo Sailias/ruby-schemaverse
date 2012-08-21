@@ -43,7 +43,7 @@ class TradeItem < ActiveRecord::Base
     val = true
     begin
       #ids = TradeItem.all.collect(&:descriptor)
-      (TradeItem.count / 1000).to_i.times do
+      (TradeItem.count / 1000.0).ceil.times do
         ActiveRecord::Base.connection.execute("DELETE FROM trade_items WHERE id IN(SELECT id FROM trade_items LIMIT 1000)")
       end
         #ActiveRecord::Base.connection.execute("DELETE FROM trade_items")
