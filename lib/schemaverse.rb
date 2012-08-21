@@ -394,7 +394,7 @@ class Schemaverse
 
         if planet_to_conquer
 
-          @my_player -= cost_of_attack_fleet
+          #@my_player -= cost_of_attack_fleet
           closest_planet_to_objective = planet_to_conquer.closest_planets(1).my_planets.first
           Resque.enqueue(ArmadaShips, closest_planet_to_objective.id, planet_to_conquer.id, @number_of_ships_in_armada)
         end
