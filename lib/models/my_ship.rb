@@ -23,7 +23,7 @@ class MyShip < ActiveRecord::Base
     end
   end
 
-  def self.create_ships_at(number, planet, name_type, prospecting, attack, defense, engineering, action, action_target_id, max_speed = 0, max_fuel = 0, range=0)
+  def self.create_ships_at(number, planet, name_type, prospecting, attack, defense, engineering, action, action_target_id, max_speed = 0, max_fuel = 0, range = 0)
     ships = []
     return ships if number < 1
 
@@ -75,12 +75,6 @@ class MyShip < ActiveRecord::Base
           player.convert_fuel_to_money(cost_of_ship - balance)
         end
         MyShip.select(select_statements.join(",")).where(:id => ship.id).first unless select_statements.empty?
-        #ship.upgrade("PROSPECTING", prospecting) if prospecting > 0
-        #ship.upgrade("ATTACK", attack) if attack > 0
-        #ship.upgrade("DEFENSE", defense) if defense > 0
-        #ship.upgrade("ENGINEERING", engineering) if engineering > 0
-        #ship.upgrade("MAX_FUEL", max_fuel) if max_fuel > 0
-        #ship.upgrade("MAX_SPEED", max_speed) if max_speed > 0
         ships << ship
         puts "Created a ship #{ship.name} for #{planet.name}"
       else
