@@ -200,7 +200,6 @@ class Schemaverse
     # This is still a planet we need to capture
     #explorer_object = calculate_efficient_travel(expand_planet)
     #if explorer_object.is_a?(Planet)
-
     Resque.enqueue(TravellingShips, expand_planet.id, (@max_ship_fuel / 2).to_i, (@max_ship_speed / 2).to_i)
     #elsif explorer_object.is_a?(MyShip) #&& explorer_object.type == "Travelling"
     #                                    #puts "Travelling ship #{explorer_object.name} is queued to travel to #{expand_planet.name}"
@@ -393,6 +392,8 @@ class Schemaverse
           order("distance").first
 
         if planet_to_conquer
+
+          @my_player -= cost_of_attack_fleet
           closest_planet_to_objective = planet_to_conquer.closest_planets(1).my_planets.first
           Resque.enqueue(ArmadaShips, closest_planet_to_objective.id, planet_to_conquer.id, @number_of_ships_in_armada)
         end
