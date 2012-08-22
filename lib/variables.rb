@@ -85,6 +85,8 @@ module Variables
       @my_player.convert_money_to_fuel(@my_player.balance)
 
       @planets_to_create_objects = []
+      @travellers_to_deploy = []
+      @armadas_to_deploy = []
 
       puts "    reloading planets"
       my_planets = []
