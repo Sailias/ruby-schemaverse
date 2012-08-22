@@ -437,7 +437,7 @@ class Schemaverse
       begin
         if travelling_ship.at_destination?
           if travelling_ship.objective.is_a?(Planet)
-            if @planets.include?(travelling_ship.objective) || travelling_ship.ships_in_range.size > 3
+            if @planets.include?(travelling_ship.objective) || travelling_ship.ships_in_range.size > 0
               puts "At planet #{travelling_ship.objective.name} => Ships in Range #{travelling_ship.ships_in_range.size}"
               # Lets move this ship to another planet!
               #new_planet = next_expand_planet(0, travelling_ship)

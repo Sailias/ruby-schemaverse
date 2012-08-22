@@ -8,6 +8,7 @@ class TravellingShips
     player = MyPlayer.first
     if ship = MyShip.create_ships_at(1, explorer_object, 'traveller', 80, 150, 150, 100, 'MINE', expand_planet.id, max_speed, max_fuel).first
       ship.course_control((Functions.distance_between(explorer_object, expand_planet) / 2).to_i, nil, expand_planet.location)
+      ship.refuel_ship
     end
   end
 end
