@@ -51,13 +51,18 @@ class Schemaverse
             upgrade_bad_travellers
             handle_interior_ships
             handle_planets_ships if @home
+            deploy_travelling_ships if @home
+            deploy_armada_groups
 
             if @ships.size > @number_of_total_ships_allowed - 500
               # stash my ships so there are only 1/2 of the max in play
               puts "Freeing up ships for this tic!"
               Resque.enqueue(StashShips,
                              @ships.size - @number_of_total_ships_allowed + (@number_of_total_ships_allowed / 2),
-                             @planets_to_create_objects
+                             @planets_to_create_objects,
+                             @travellers_to_deploy,
+                             @armadas_to_deploy
+
               )
             else
               @planets_to_create_objects.each do |arr|
@@ -66,10 +71,7 @@ class Schemaverse
             end
 
             refuel_ships
-            deploy_travelling_ships if @home
 
-            #if @tic < 100
-            deploy_armada_groups
             manage_travelling_ships_actions
             manage_armada_ships_actions
             #handle_lost_planets
@@ -201,7 +203,10 @@ class Schemaverse
     # This is still a planet we need to capture
     #explorer_object = calculate_efficient_travel(expand_planet)
     #if explorer_object.is_a?(Planet)
-    Resque.enqueue(TravellingShips, expand_planet.id, (@max_ship_fuel / 2).to_i, (@max_ship_speed / 2).to_i)
+
+    #Resque.enqueue(TravellingShips, expand_planet.id, (@max_ship_fuel / 2).to_i, (@max_ship_speed / 2).to_i)
+    @travellers_to_deploy << [expand_planet.id, (@max_ship_fuel / 2).to_i, (@max_ship_speed / 2).to_i]
+    #
     #elsif explorer_object.is_a?(MyShip) #&& explorer_object.type == "Travelling"
     #                                    #puts "Travelling ship #{explorer_object.name} is queued to travel to #{expand_planet.name}"
     #                                    #explorer_object.queue += expand_planet
@@ -397,7 +402,8 @@ class Schemaverse
 
           #@my_player -= cost_of_attack_fleet
           closest_planet_to_objective = planet_to_conquer.closest_planets(1).my_planets.first
-          Resque.enqueue(ArmadaShips, closest_planet_to_objective.id, planet_to_conquer.id, @number_of_ships_in_armada)
+          @armadas_to_deploy << [closest_planet_to_objective.id, planet_to_conquer.id, @number_of_ships_in_armada]
+          #Resque.enqueue(ArmadaShips, closest_planet_to_objective.id, planet_to_conquer.id, @number_of_ships_in_armada)
         end
       end
     end

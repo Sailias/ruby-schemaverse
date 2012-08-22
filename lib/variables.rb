@@ -59,6 +59,8 @@ module Variables
     end
 
     @planets_to_create_objects = []
+    @travellers_to_deploy = []
+    @armadas_to_deploy = []
 
     @objective_planets = []
     #@objective_planets = Planet.not_my_planets.select("id, name, location, conqueror_id, planets.location<->POINT('#{@home.location}') as distance").order("distance ASC").all
