@@ -429,6 +429,12 @@ class Schemaverse
       @my_player.convert_fuel_to_money((PriceList.max_speed * up_trav_ship_ids.size * 100000).to_i)
       MyShip.select("UPGRADE(id, 'MAX_SPEED', 100000)").where(:id => up_trav_ship_ids).all
     end
+
+    up_trav_ship_ids = @travelling_ships.select{ |s| s.target_speed == 1000 && s.distance_from_objective > 1000}.collect(&:id)
+    unless up_trav_ship_ids.empty?
+      MyShip.update_all({:target_speed => 400000}, {:id => up_trav_ship_ids})
+    end
+
   end
 
   def manage_travelling_ships_actions
