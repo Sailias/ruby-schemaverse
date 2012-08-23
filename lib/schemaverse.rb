@@ -51,8 +51,8 @@ class Schemaverse
             upgrade_bad_travellers
             handle_interior_ships
             handle_planets_ships if @home
-            deploy_travelling_ships if @home
             deploy_armada_groups
+            deploy_travelling_ships if @home && @tic < 150
 
             if @ships.size > @number_of_total_ships_allowed - 500
               # stash my ships so there are only 1/2 of the max in play
@@ -345,15 +345,15 @@ class Schemaverse
       end
     end
 
-    #if @tic < 100
-    puts "Checking for ships travelling that are out of fuel"
-    @travelling_ships.select { |s| !s.at_destination? && s.current_fuel < s.speed }.sort_by { |s| s.distance_from_objective }.each do |ship|
-      if @my_player.fuel_reserve > ship.max_fuel - ship.current_fuel
-        ships_to_refuel += [ship]
-        @my_player.fuel_reserve -= ship.max_fuel - ship.current_fuel
+    if @tic < 150
+      puts "Checking for ships travelling that are out of fuel"
+      @travelling_ships.select { |s| !s.at_destination? && s.current_fuel < s.speed }.sort_by { |s| s.distance_from_objective }.each do |ship|
+        if @my_player.fuel_reserve > ship.max_fuel - ship.current_fuel
+          ships_to_refuel += [ship]
+          @my_player.fuel_reserve -= ship.max_fuel - ship.current_fuel
+        end
       end
     end
-    #end
 
     unless ships_to_refuel.empty?
       puts "    refueling #{ships_to_refuel.size}"
