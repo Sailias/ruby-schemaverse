@@ -21,8 +21,10 @@ class ArmadaShips
     ) * num
 
     player.convert_fuel_to_money(total_cost - player.balance) if player.balance < total_cost
-    if ship = MyShip.create_ships_at(num, closest_planet_to_objective, 'armada', prospecting, defense, attack, engineering, 'MINE', planet_to_conquer.id, max_speed, max_fuel).first
-      ship.course_control((Functions.distance_between(planet_to_conquer, closest_planet_to_objective) / 2).to_i, nil, planet_to_conquer.location)
+    if ships = MyShip.create_ships_at(num, closest_planet_to_objective, 'armada', prospecting, defense, attack, engineering, 'MINE', planet_to_conquer.id, max_speed, max_fuel)
+      ships.each do |ship|
+        ship.course_control((Functions.distance_between(planet_to_conquer, closest_planet_to_objective) / 2).to_i, nil, planet_to_conquer.location)
+      end
     end
   end
 end

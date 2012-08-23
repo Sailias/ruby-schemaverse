@@ -604,7 +604,7 @@ class Schemaverse
     end
 
     def estimated_income(ships)
-      mining_gain_per_prospecting = 16.5
+      mining_gain_per_prospecting = 12.65
       ships.select { |s| s.action && s.action.strip == 'MINE' }.sum(&:prospecting) * mining_gain_per_prospecting
     end
 
