@@ -17,7 +17,7 @@ class MyShip < ActiveRecord::Base
 
   def self.mine_all_planets
     begin
-      sql = "UPDATE my_ships SET action='MINE', action_target_id=planets_in_range.planet FROM planets_in_range WHERE my_ships.id=planets_in_range.ship AND my_ships.name NOT LIKE '%defender%'"
+      sql = "UPDATE my_ships SET action='MINE', action_target_id=planets_in_range.planet FROM planets_in_range WHERE my_ships.id=planets_in_range.ship AND my_ships.name NOT LIKE '%defender%' AND my_ships.name NOT LIKE '%repairer%'"
       ActiveRecord::Base.connection.update_sql(sql)
     rescue
     end

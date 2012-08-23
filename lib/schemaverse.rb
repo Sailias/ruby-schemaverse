@@ -345,7 +345,7 @@ class Schemaverse
       end
     end
 
-    if @tic < 150
+    if @tic < 150 || @my_player.total_resources > 100000000
       puts "Checking for ships travelling that are out of fuel"
       @travelling_ships.select { |s| !s.at_destination? && s.current_fuel < s.speed }.sort_by { |s| s.distance_from_objective }.each do |ship|
         if @my_player.fuel_reserve > ship.max_fuel - ship.current_fuel
