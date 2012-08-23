@@ -23,7 +23,7 @@ class MyShip < ActiveRecord::Base
     end
   end
 
-  def self.create_ships_at(number, planet, name_type, prospecting, attack, defense, engineering, action, action_target_id, max_speed = 0, max_fuel = 0, range = 0)
+  def self.create_ships_at(number, planet, name_type, prospecting, attack, defense, engineering, action, action_target_id, max_speed = 0, max_fuel = 0, range = 0, original_values = [])
     ships = []
     return ships if number < 1
 
@@ -40,6 +40,12 @@ class MyShip < ActiveRecord::Base
       (PriceList.max_fuel * max_fuel) +
       (PriceList.range * range)
 
+    original_prospecting, original_attack, original_defense, original_engineering = 5,5,5,5
+
+    unless original_values.empty?
+      original_prospecting, original_attack, original_defense, original_engineering = original_values
+    end
+
     loop_num = (total_resources / cost_of_ship).to_i >= number ? number : (total_resources / cost_of_ship).to_i
     total_cost = cost_of_ship * loop_num
 
@@ -51,10 +57,10 @@ class MyShip < ActiveRecord::Base
       # If you can build another miner at this planet, do so
       ship = planet.ships.create(
         :name => "#{planet.name}-#{name_type}",
-        :prospecting => 5,
-        :attack => 5,
-        :defense => 5,
-        :engineering => 5,
+        :prospecting => original_prospecting,
+        :attack => original_attack,
+        :defense => original_defense,
+        :engineering => original_engineering,
         :location => planet.location
       )
 
