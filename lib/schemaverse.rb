@@ -49,7 +49,7 @@ class Schemaverse
 
             populate_tic_data
             upgrade_bad_travellers
-            handle_interior_ships
+            #handle_interior_ships
             handle_planets_ships if @home
             deploy_armada_groups
             deploy_travelling_ships if @home && @tic < 150
@@ -309,20 +309,20 @@ class Schemaverse
   def handle_interior_ships
     puts "handling interior planets"
     # Start killing of ships at planets that in my interior
-    @planets.sort_by { |p| Functions.distance_between(p, @home) }.each do |planet|
+    #@planets.sort_by { |p| Functions.distance_between(p, @home) }.each do |planet|
       #begin
       #  conquer_planet(planet)
       #
       #if planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.empty? && @mining_ships.size >= @number_of_miners_allowed
       #stash_ships_at(planet)
       #else
-      planet.closest_planets(30).select { |p| p.conqueror_id != @my_player.id }.sort_by { |p| Functions.distance_between(planet, p) }.each do |p|
-        @armada_planets.unshift(p) if !@armada_planets.include?(p) && !@armada_targets.include?(p)
-      end
+      #planet.closest_planets(30).select { |p| p.conqueror_id != @my_player.id }.sort_by { |p| Functions.distance_between(planet, p) }.each do |p|
+      #  @armada_planets.unshift(p) if !@armada_planets.include?(p) && !@armada_targets.include?(p)
+      #end
       #end
       #rescue
       #end
-    end
+    #end
   end
 
   def handle_planets_ships

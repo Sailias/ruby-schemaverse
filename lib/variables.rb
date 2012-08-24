@@ -116,7 +116,12 @@ module Variables
       #end
 
       @lost_planets = []
-
+      @ships = []
+      @travelling_ships = []
+      @armada_ships = []
+      @mining_ships = []
+      @ships_in_range = []
+      my_ships = []
       my_ships = MyShip.select("name, location, destination, current_health").all
 
       #new_ships = my_ships - @ships
@@ -134,15 +139,15 @@ module Variables
       @armada_ships = @ships.select { |s| s.objective && s.name.include?("armada") }
       @mining_ships = @ships.select { |s| s.action && s.action.strip.eql?("MINE") && !s.name.include?("armada") && !s.name.include?("traveller") }
 
-      @armada_ships.each do |ship|
-        @armada_targets << ship.objective unless @armada_planets.include?(ship.objective)
-        @objective_planets -= [ship.objective]
-        @armada_planets -= [ship.objective]
-      end
+      #@armada_ships.each do |ship|
+      #  @armada_targets << ship.objective unless @armada_planets.include?(ship.objective)
+        #@objective_planets -= [ship.objective]
+        #@armada_planets -= [ship.objective]
+      #end
 
-      @travelling_ships.each do |travelling_ship|
-        @objective_planets -= [travelling_ship.objective]
-      end
+      #@travelling_ships.each do |travelling_ship|
+        #@objective_planets -= [travelling_ship.objective]
+      #end
 
       # Add the planet back to the start of our objective planets
       #@lost_ships.collect(&:objective).compact.select { |o| o.is_a?(Planet) && !@planets.include?(o) }.each do |planet|
