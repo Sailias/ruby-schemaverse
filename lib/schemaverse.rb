@@ -418,19 +418,19 @@ class Schemaverse
   end
 
   def upgrade_bad_travellers
-    up_trav_ship_ids = @travelling_ships.select { |s| s.max_fuel < 100000 }.collect(&:id)
+    up_trav_ship_ids = (@travelling_ships + @armada_ships).select { |s| s.max_fuel < 100000 }.collect(&:id)
     unless up_trav_ship_ids.empty?
       @my_player.convert_fuel_to_money((PriceList.max_fuel * up_trav_ship_ids.size * 100000).to_i)
       MyShip.select("UPGRADE(id, 'MAX_FUEL', 100000)").where(:id => up_trav_ship_ids).all
     end
 
-    up_trav_ship_ids = @travelling_ships.select { |s| s.max_speed < 100000 }.collect(&:id)
+    up_trav_ship_ids = (@travelling_ships + @armada_ships).select { |s| s.max_speed < 100000 }.collect(&:id)
     unless up_trav_ship_ids.empty?
       @my_player.convert_fuel_to_money((PriceList.max_speed * up_trav_ship_ids.size * 100000).to_i)
       MyShip.select("UPGRADE(id, 'MAX_SPEED', 100000)").where(:id => up_trav_ship_ids).all
     end
 
-    up_trav_ship_ids = @travelling_ships.select{ |s| s.target_speed == 1000 && s.distance_from_objective > 1000}.collect(&:id)
+    up_trav_ship_ids = (@travelling_ships + @armada_ships).select{ |s| s.target_speed == 1000 && s.distance_from_objective > 1000}.collect(&:id)
     unless up_trav_ship_ids.empty?
       MyShip.update_all({:target_speed => 400000}, {:id => up_trav_ship_ids})
     end
