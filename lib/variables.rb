@@ -55,7 +55,7 @@ module Variables
     @number_of_miners_allowed = @number_of_total_ships_allowed - @number_of_travelling_ships - (@number_of_armada_groups * @number_of_ships_in_armada)
 
     @armada_ships.each do |ship|
-      @armada_targets << ship.objective unless @armada_planets.include?(ship.objective)
+      #@armada_targets << ship.objective unless @armada_planets.include?(ship.objective)
     end
 
     @planets_to_create_objects = []
@@ -103,7 +103,7 @@ module Variables
         #@objective_planets.delete(planet) if @objective_planets.index(planet)
       end
 
-      @lost_planets += @planets - my_planets
+      #@lost_planets += @planets - my_planets
       @planets = my_planets
 
       puts "You own #{@planets.size} planets"
@@ -125,7 +125,7 @@ module Variables
       my_ships = MyShip.select("name, location, destination, current_health").all
 
       #new_ships = my_ships - @ships
-      @lost_ships += @ships - my_ships
+      #@lost_ships += @ships - my_ships
 
       puts "    populating ship objective data"
       @ships = my_ships
