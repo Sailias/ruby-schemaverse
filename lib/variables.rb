@@ -122,7 +122,8 @@ module Variables
       @mining_ships = []
       @ships_in_range = []
       my_ships = []
-      my_ships = MyShip.select("name, location, destination, current_health, action, action_target_id").all
+      #my_ships = MyShip.select("name, location, destination, current_health, action, action_target_id").all
+      my_ships = MyShip.all
 
       #new_ships = my_ships - @ships
       #@lost_ships += @ships - my_ships
