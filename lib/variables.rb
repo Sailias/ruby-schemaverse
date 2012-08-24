@@ -24,7 +24,7 @@ module Variables
     @max_ship_skill = Functions.get_numeric_variable('MAX_SHIP_SKILL')
     @max_ship_fuel = Functions.get_numeric_variable('MAX_SHIP_FUEL')
     @max_ship_speed = Functions.get_numeric_variable('MAX_SHIP_SPEED')
-    @ships = MyShip.all
+    @ships = MyShip.select("name, location, destination, current_health").all
     @travelling_ships = []
     @armada_ships = []
 
@@ -117,7 +117,8 @@ module Variables
 
       @lost_planets = []
 
-      my_ships = MyShip.all
+      my_ships = MyShip.select("name, location, destination, current_health").all
+
       #new_ships = my_ships - @ships
       @lost_ships += @ships - my_ships
 
