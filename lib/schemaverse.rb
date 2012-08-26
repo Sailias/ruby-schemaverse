@@ -385,7 +385,7 @@ class Schemaverse
     if @armada_ships.each_slice(@number_of_ships_in_armada).to_a.size < @number_of_armada_groups
 
       # For now only create 1 armada group because it takes too long
-      (@number_of_armada_groups - @armada_ships.each_slice(@number_of_ships_in_armada).to_a.size).times do |i|
+      #(@number_of_armada_groups - @armada_ships.each_slice(@number_of_ships_in_armada).to_a.size).times do |i|
 
         # Create another group of amada ships if you can
         cost_of_attack_fleet = ((PriceList.ship) +
@@ -417,7 +417,7 @@ class Schemaverse
             #Resque.enqueue(ArmadaShips, closest_planet_to_objective.id, planet_to_conquer.id, @number_of_ships_in_armada)
           end
         end
-      end
+      #end
     end
   end
 
