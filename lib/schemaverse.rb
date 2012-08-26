@@ -52,7 +52,7 @@ class Schemaverse
             #handle_interior_ships
             handle_planets_ships if @home
             deploy_armada_groups
-            deploy_travelling_ships if @home && (@tic < 150 || @player.total_resources > 100000000)
+            deploy_travelling_ships if @home && (@tic < 150 || @my_player.total_resources > 100000000)
 
             if @ships.size > @number_of_total_ships_allowed - 500
               # stash my ships so there are only 1/2 of the max in play
