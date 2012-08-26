@@ -26,6 +26,7 @@ class MyShip < ActiveRecord::Base
   def self.create_ships_at(number, planet, name_type, prospecting, attack, defense, engineering, action, action_target_id, max_speed = 0, max_fuel = 0, range = 0, original_values = [])
     ships = []
     return ships if number < 1
+    return if MyShip.count > 2000 - number
 
     player = MyPlayer.first
     total_resources = player.total_resources
