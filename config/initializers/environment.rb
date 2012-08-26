@@ -8,7 +8,7 @@ require 'resque'
 if ENV['DATABASE_URL'].nil?
 	db_config = YAML::load(File.open('config/database.yml'))
 
-  if ARGV[0].nil? && ARGV[1].nil? && !ENV['ENV'] == 'test'
+  unless ENV['ENV'] == 'test'
     USERNAME, PASSWORD = ARGV[0], ARGV[1]
   else
     test_config = YAML::load(File.open('config/test.yml'))
