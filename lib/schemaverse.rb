@@ -607,7 +607,9 @@ class Schemaverse
     repairing_ships = []
     @ships.select { |s| s.current_health < 100 }.each do |hurt_ship|
       begin
-        @ships.select { |s| Functions.distance_between(s, hurt_ship) <= s.range && !s.eql?(hurt_ship) && s.action.strip.eql?("REPAIR") && !repairing_ships.include?(s) }.each do |repair_ship|
+
+        repair_ship = @ships.detect { |s| Functions.distance_between(s, hurt_ship) <= s.range && !s.eql?(hurt_ship) && s.action.strip.eql?("REPAIR") && !repairing_ships.include?(s) }
+        if repair_ship
           repair_ship.repair(hurt_ship.id)
           repairing_ships << repair_ship
         end
