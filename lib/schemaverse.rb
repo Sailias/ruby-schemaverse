@@ -87,6 +87,8 @@ class Schemaverse
             attack_ships
             repair_ships
             MyShip.mine_all_planets
+
+            puts "End of tic actions, waiting for a new tic!"
           else
             Resque.enqueue(UnstashShips)
           end
@@ -395,10 +397,10 @@ class Schemaverse
           (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 3)
         ) * @number_of_ships_in_armada
 
-        puts "Attack fleet cost: #{cost_of_attack_fleet}"
+        #puts "Attack fleet cost: #{cost_of_attack_fleet}"
 
         if @my_player.total_resources >= cost_of_attack_fleet
-          puts "Number of armada planets: #{@armada_planets.size}"
+          #puts "Number of armada planets: #{@armada_planets.size}"
           #planet_to_conquer = @armada_planets.sort_by { |ap| Functions.distance_between(@home, ap) }.first
           planet_to_conquer = Planet.
             not_my_planets.
