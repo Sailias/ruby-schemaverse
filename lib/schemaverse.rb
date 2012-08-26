@@ -406,8 +406,7 @@ class Schemaverse
             not_my_planets.
             select("id, POINT(location) <-> POINT('#{@home.location}') as distance, location").
             where("location::varchar NOT IN(SELECT destination::varchar FROM my_ships WHERE destination IS NOT NULL)").
-            order("distance")#.
-            #offset(i).first
+            order("distance").first
 
           if planet_to_conquer
 
