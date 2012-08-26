@@ -310,18 +310,18 @@ class Schemaverse
     puts "handling interior planets"
     # Start killing of ships at planets that in my interior
     #@planets.sort_by { |p| Functions.distance_between(p, @home) }.each do |planet|
-      #begin
-      #  conquer_planet(planet)
-      #
-      #if planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.empty? && @mining_ships.size >= @number_of_miners_allowed
-      #stash_ships_at(planet)
-      #else
-      #planet.closest_planets(30).select { |p| p.conqueror_id != @my_player.id }.sort_by { |p| Functions.distance_between(planet, p) }.each do |p|
-      #  @armada_planets.unshift(p) if !@armada_planets.include?(p) && !@armada_targets.include?(p)
-      #end
-      #end
-      #rescue
-      #end
+    #begin
+    #  conquer_planet(planet)
+    #
+    #if planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.empty? && @mining_ships.size >= @number_of_miners_allowed
+    #stash_ships_at(planet)
+    #else
+    #planet.closest_planets(30).select { |p| p.conqueror_id != @my_player.id }.sort_by { |p| Functions.distance_between(planet, p) }.each do |p|
+    #  @armada_planets.unshift(p) if !@armada_planets.include?(p) && !@armada_targets.include?(p)
+    #end
+    #end
+    #rescue
+    #end
     #end
   end
 
@@ -383,35 +383,37 @@ class Schemaverse
     if @armada_ships.each_slice(@number_of_ships_in_armada).to_a.size < @number_of_armada_groups
 
       # For now only create 1 armada group because it takes too long
-      #(@number_of_armada_groups - @armada_ships.each_slice(@number_of_ships_in_armada).to_a.size).times do
+      (@number_of_armada_groups - @armada_ships.each_slice(@number_of_ships_in_armada).to_a.size).times do |i|
 
-      # Create another group of amada ships if you can
-      cost_of_attack_fleet = ((PriceList.ship) +
-        (PriceList.defense * 200) +
-        (PriceList.attack * 200) +
-        (PriceList.prospecting * 20) +
-        (PriceList.engineering * 80) +
-        (Functions.get_numeric_variable('MAX_SHIP_FUEL') / 3) +
-        (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 3)
-      ) * @number_of_ships_in_armada
+        # Create another group of amada ships if you can
+        cost_of_attack_fleet = ((PriceList.ship) +
+          (PriceList.defense * 200) +
+          (PriceList.attack * 200) +
+          (PriceList.prospecting * 20) +
+          (PriceList.engineering * 80) +
+          (Functions.get_numeric_variable('MAX_SHIP_FUEL') / 3) +
+          (Functions.get_numeric_variable('MAX_SHIP_SPEED') / 3)
+        ) * @number_of_ships_in_armada
 
-      puts "Attack fleet cost: #{cost_of_attack_fleet}"
+        puts "Attack fleet cost: #{cost_of_attack_fleet}"
 
-      if @my_player.total_resources >= cost_of_attack_fleet
-        puts "Number of armada planets: #{@armada_planets.size}"
-        #planet_to_conquer = @armada_planets.sort_by { |ap| Functions.distance_between(@home, ap) }.first
-        planet_to_conquer = Planet.
-          not_my_planets.
-          select("id, POINT(location) <-> POINT('#{@home.location}') as distance, location").
-          where("location::varchar NOT IN(SELECT destination::varchar FROM my_ships WHERE destination IS NOT NULL)").
-          order("distance").first
+        if @my_player.total_resources >= cost_of_attack_fleet
+          puts "Number of armada planets: #{@armada_planets.size}"
+          #planet_to_conquer = @armada_planets.sort_by { |ap| Functions.distance_between(@home, ap) }.first
+          planet_to_conquer = Planet.
+            not_my_planets.
+            select("id, POINT(location) <-> POINT('#{@home.location}') as distance, location").
+            where("location::varchar NOT IN(SELECT destination::varchar FROM my_ships WHERE destination IS NOT NULL)").
+            order("distance").
+            offset(i).first
 
-        if planet_to_conquer
+          if planet_to_conquer
 
-          #@my_player -= cost_of_attack_fleet
-          closest_planet_to_objective = planet_to_conquer.closest_planets(1).my_planets.first
-          @armadas_to_deploy << [closest_planet_to_objective.id, planet_to_conquer.id, @number_of_ships_in_armada]
-          #Resque.enqueue(ArmadaShips, closest_planet_to_objective.id, planet_to_conquer.id, @number_of_ships_in_armada)
+            #@my_player -= cost_of_attack_fleet
+            closest_planet_to_objective = planet_to_conquer.closest_planets(1).my_planets.first
+            @armadas_to_deploy << [closest_planet_to_objective.id, planet_to_conquer.id, @number_of_ships_in_armada]
+            #Resque.enqueue(ArmadaShips, closest_planet_to_objective.id, planet_to_conquer.id, @number_of_ships_in_armada)
+          end
         end
       end
     end
@@ -430,7 +432,7 @@ class Schemaverse
       MyShip.select("UPGRADE(id, 'MAX_SPEED', 100000)").where(:id => up_trav_ship_ids).all
     end
 
-    up_trav_ship_ids = @travelling_ships.select{ |s| s.target_speed == 1000 && s.distance_from_objective > 1000}.collect(&:id)
+    up_trav_ship_ids = @travelling_ships.select { |s| s.target_speed == 1000 && s.distance_from_objective > 1000 }.collect(&:id)
     unless up_trav_ship_ids.empty?
       MyShip.update_all({:target_speed => 400000}, {:id => up_trav_ship_ids})
     end
@@ -447,7 +449,7 @@ class Schemaverse
       MyShip.select("UPGRADE(id, 'MAX_SPEED', 100000)").where(:id => up_trav_ship_ids).all
     end
 
-    up_trav_ship_ids = @armada_ships.select{ |s| s.target_speed == 1000 && s.distance_from_objective > 1000}.collect(&:id)
+    up_trav_ship_ids = @armada_ships.select { |s| s.target_speed == 1000 && s.distance_from_objective > 1000 }.collect(&:id)
     unless up_trav_ship_ids.empty?
       MyShip.update_all({:target_speed => 400000}, {:id => up_trav_ship_ids})
     end
