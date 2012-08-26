@@ -51,7 +51,7 @@ module Variables
     @number_of_total_ships_allowed = 2001
     @number_of_ships_in_armada = 20
     @number_of_armada_groups = 75
-    @number_of_travelling_ships = 50
+    @number_of_travelling_ships = 500
     @number_of_miners_allowed = @number_of_total_ships_allowed - @number_of_travelling_ships - (@number_of_armada_groups * @number_of_ships_in_armada)
 
     @armada_ships.each do |ship|
