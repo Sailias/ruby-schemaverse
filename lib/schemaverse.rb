@@ -599,7 +599,7 @@ class Schemaverse
     #  rescue
     #  end
     #end
-    ShipsInRange.select("ATTACK(ships_in_range.ship_in_range_of, MIN(ships_in_range.id))").joins(:my_ship).where("my_ships.name NOT LIKE '%repairer%' AND my_ships.name NOT LIKE '%traveller%'").group("ships_in_range.ship_in_range_of").all
+    ShipsInRange.select("ATTACK(ships_in_range.ship_in_range_of, MIN(ships_in_range.id))").joins(:my_ship).where("my_ships.name NOT LIKE '%repairer%' AND my_ships.name NOT LIKE '%traveller%' AND my_ships.name NOT LIKE '%armada%'").group("ships_in_range.ship_in_range_of").all
   end
 
   def repair_ships
