@@ -49,6 +49,7 @@ class Schemaverse
 
             populate_tic_data
             upgrade_bad_travellers
+            refuel_ships
             #handle_interior_ships
             handle_planets_ships if @home
             deploy_armada_groups
@@ -77,8 +78,6 @@ class Schemaverse
                 Resque.enqueue(ArmadaShips, armad[0], armad[1], armad[2])
               end
             end
-
-            refuel_ships
 
             manage_travelling_ships_actions
             manage_armada_ships_actions
