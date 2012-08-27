@@ -49,9 +49,9 @@ class Schemaverse
 
             populate_tic_data
             upgrade_bad_travellers
-            refuel_ships
             #handle_interior_ships
             handle_planets_ships if @home
+            refuel_ships if @tic % 2 == 0
             deploy_armada_groups
             deploy_travelling_ships if @home && (@tic < 150 || @my_player.total_resources > 100000000)
 
