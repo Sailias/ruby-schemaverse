@@ -515,7 +515,7 @@ class Schemaverse
         #armada_ship_grp.last.each do |armada_ship|
         #  armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
         #end
-        if armada_ship_grp.last.select { |as| as.at_destination? }.size > 0
+        if armada_ship_grp.last.select { |as| as.at_destination? || @planets.include?(as.objective) }.size > 0
 
           #armada_ship_grp.last.each do |armada_ship|
           #  armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
@@ -523,7 +523,12 @@ class Schemaverse
 
           if @planets.include?(armada_ship_grp.first)
             #new_armada_planet = @armada_planets.sort_by { |p| Functions.distance_between(p, armada_ship_grp.last[0]) }.first
-            new_armada_planet = armada_ship_grp.first.closest_planets(1).not_my_planets.first
+            new_armada_planet = Planet.
+              not_my_planets.
+              select("id, POINT(location) <-> POINT('#{armada_ship_grp.first.location}') as distance, location").
+              where("location::varchar NOT IN(SELECT destination::varchar FROM my_ships WHERE destination IS NOT NULL)").
+              order("distance").first
+
             if new_armada_planet
               puts "MISSION COMPLETE!! MOVE ON"
               puts "moving ships to #{new_armada_planet.name}"
