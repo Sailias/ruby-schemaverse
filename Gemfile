@@ -10,4 +10,5 @@ gem "redis-namespace", "~> 1.2.0"
 gem "pry", "~> 0.9.10"
 gem 'resque'
 gem 'rake'
-gem 'pg', #"0.9.0"
+gem 'pg' #"0.9.0"
+gem 'bluepill'
