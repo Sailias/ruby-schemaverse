@@ -53,7 +53,10 @@ class Schemaverse
             handle_planets_ships if @home
             refuel_ships if @tic % 2 == 0
             deploy_armada_groups
-            deploy_travelling_ships if @home && (@tic < 150 || @my_player.total_resources > 100000000)
+            if @home && (@tic < 150 || @my_player.total_resources > 100000000)
+              @number_of_travelling_ships = @tic / 2
+              deploy_travelling_ships
+            end
 
             if @ships.size > @number_of_total_ships_allowed - 500
               # stash my ships so there are only 1/2 of the max in play
@@ -385,7 +388,7 @@ class Schemaverse
 
       # For now only create 1 armada group because it takes too long
       #(@number_of_armada_groups - @armada_ships.each_slice(@number_of_ships_in_armada).to_a.size).times do |i|
-
+      5.times do |i|
         # Create another group of amada ships if you can
         cost_of_attack_fleet = ((PriceList.ship) +
           (PriceList.defense * 200) +
@@ -405,7 +408,8 @@ class Schemaverse
             not_my_planets.
             select("id, POINT(location) <-> POINT('#{@home.location}') as distance, location").
             where("location::varchar NOT IN(SELECT destination::varchar FROM my_ships WHERE destination IS NOT NULL)").
-            order("distance").first
+            order("distance").
+            offset(i).first
 
           if planet_to_conquer
 
@@ -415,7 +419,7 @@ class Schemaverse
             #Resque.enqueue(ArmadaShips, closest_planet_to_objective.id, planet_to_conquer.id, @number_of_ships_in_armada)
           end
         end
-      #end
+      end
     end
   end
 
