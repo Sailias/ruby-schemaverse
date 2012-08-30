@@ -71,8 +71,8 @@ module Variables
     @trade = MyTrade.create_trade
     #populate_trade_data
 
-    puts "loading ships in range"
-    @ships_in_range = ShipsInRange.all
+    #puts "loading ships in range"
+    #@ships_in_range = ShipsInRange.all
   end
 
   def populate_tic_data
@@ -155,8 +155,8 @@ module Variables
       #  @objective_planets << planet unless @objective_planets.include?(planet) || @planets.include?(planet)
       #end
 
-      puts "    loading ships in range"
-      @ships_in_range = ShipsInRange.all
+      #puts "    loading ships in range"
+      #@ships_in_range = ShipsInRange.all
 
     rescue Exception => e
       puts e.message
