@@ -535,7 +535,7 @@ class Schemaverse
             #new_armada_planet = @armada_planets.sort_by { |p| Functions.distance_between(p, armada_ship_grp.last[0]) }.first
             new_armada_planet = Planet.
               not_my_planets.
-              select("id, POINT(location) <-> POINT('#{armada_ship_grp.first.location}') as distance, location").
+              select("id, name, POINT(location) <-> POINT('#{armada_ship_grp.first.location}') as distance, location").
               where("location::varchar NOT IN(SELECT destination::varchar FROM my_ships WHERE destination IS NOT NULL)").
               where("location::varchar NOT IN(SELECT location::varchar FROM my_ships WHERE name LIKE '%miner%')").
               order("distance").first
