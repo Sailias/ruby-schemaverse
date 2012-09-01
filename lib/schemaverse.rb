@@ -377,6 +377,7 @@ class Schemaverse
           not_my_planets.
           select("id, POINT(location) <-> POINT('#{@home.location}') as distance, location").
           where("location::varchar NOT IN(SELECT destination::varchar FROM my_ships WHERE destination IS NOT NULL)").
+          where("location::varchar NOT IN(SELECT location::varchar FROM my_ships WHERE name LIKE '%miner%'").
           order("distance").
           offset(i).first
 
@@ -412,6 +413,7 @@ class Schemaverse
             not_my_planets.
             select("id, POINT(location) <-> POINT('#{@home.location}') as distance, location").
             where("location::varchar NOT IN(SELECT destination::varchar FROM my_ships WHERE destination IS NOT NULL)").
+            where("location::varchar NOT IN(SELECT location::varchar FROM my_ships WHERE name LIKE '%miner%'").
             order("distance").
             offset(i).first
 
@@ -477,6 +479,7 @@ class Schemaverse
               new_planet = Planet.not_my_planets.
                 select("id, POINT(location) <-> POINT('#{travelling_ship.objective.location}') as distance, location").
                 where("location::varchar NOT IN(SELECT destination::varchar FROM my_ships WHERE destination IS NOT NULL)").
+                where("location::varchar NOT IN(SELECT location::varchar FROM my_ships WHERE name LIKE '%miner%'").
                 order("distance").first
               if travelling_ship.course_control(travelling_ship.max_speed, nil, new_planet.location)
                 travelling_ship.objective = new_planet
@@ -534,6 +537,7 @@ class Schemaverse
               not_my_planets.
               select("id, POINT(location) <-> POINT('#{armada_ship_grp.first.location}') as distance, location").
               where("location::varchar NOT IN(SELECT destination::varchar FROM my_ships WHERE destination IS NOT NULL)").
+              where("location::varchar NOT IN(SELECT location::varchar FROM my_ships WHERE name LIKE '%miner%'").
               order("distance").first
 
             if new_armada_planet
