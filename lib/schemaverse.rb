@@ -52,7 +52,12 @@ class Schemaverse
             #handle_interior_ships
             handle_planets_ships if @home
             refuel_ships if @tic % 2 == 0
+
+            manage_armada_ships_actions
             deploy_armada_groups
+
+            attack_ships
+
             if @home && (@tic < 150 || @my_player.total_resources > 100000000)
               @number_of_travelling_ships = @tic / 2
               deploy_travelling_ships
@@ -83,10 +88,9 @@ class Schemaverse
             end
 
             manage_travelling_ships_actions
-            manage_armada_ships_actions
             #handle_lost_planets
             #manage_ships_in_range
-            attack_ships
+
             repair_ships
             MyShip.mine_all_planets
 
@@ -518,7 +522,7 @@ class Schemaverse
         #armada_ship_grp.last.each do |armada_ship|
         #  armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
         #end
-        if armada_ship_grp.last.select { |as| as.at_destination? || @planets.include?(as.objective) }.size > 0
+        if armada_ship_grp.last.select { |as| as.at_destination?}.size > 0 || @planets.include?(armada_ship_grp.first)
 
           #armada_ship_grp.last.each do |armada_ship|
           #  armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
@@ -541,8 +545,8 @@ class Schemaverse
                   armada_ship.update_attributes(:action => "MINE", :action_target_id => new_armada_planet.id)
                 end
               end
-              @armada_planets.delete(new_armada_planet)
-              @armada_targets << new_armada_planet
+              #@armada_planets.delete(new_armada_planet)
+              #@armada_targets << new_armada_planet
             end
           end
         end
