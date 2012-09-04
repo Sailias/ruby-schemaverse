@@ -93,6 +93,15 @@ class MyShip < ActiveRecord::Base
     return ships
   end
 
+  def self.course_control_for_ships(ships, speed, direction = nil, destination = nil)
+    begin
+      dest = destination.nil? ? "NULL" : "POINT('#{destination}')"
+      dir = direction.nil? ? "NULL" : direction
+      self.class.select("SHIP_COURSE_CONTROL(my_ships.id, #{speed}, #{dir}, #{dest})").where(:id => ships.collect(&:id)).all
+    rescue
+    end
+  end
+
   def upgrade(attribute, amount)
     val = self.class.select("UPGRADE(#{self.id}, '#{attribute}', #{amount})").where(:id => self.id).first.attributes
     if val["upgrade"] == 't'
