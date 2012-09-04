@@ -44,60 +44,45 @@ class Schemaverse
           puts "Starting new Tic"
           last_tic = @tic
 
-          if TradeItem.destroy_all_trades
-            #@trade_ships = []
+          #@trade_ships = []
 
-            populate_tic_data
-            upgrade_bad_travellers
-            #handle_interior_ships
-            handle_planets_ships if @home
-            refuel_ships if @tic % 2 == 0
+          populate_tic_data
+          upgrade_bad_travellers
+          handle_interior_ships
+          handle_planets_ships if @home
+          refuel_ships if @tic % 2 == 0
 
-            manage_armada_ships_actions
-            deploy_armada_groups
+          manage_armada_ships_actions
+          deploy_armada_groups
 
-            attack_ships
+          attack_ships
 
-            if @home && (@tic < 150 || @my_player.total_resources > 100000000)
-              @number_of_travelling_ships = @tic / 2
-              deploy_travelling_ships
-            end
-
-            if @ships.size > @number_of_total_ships_allowed - 500
-              # stash my ships so there are only 1/2 of the max in play
-              puts "Freeing up ships for this tic!"
-              Resque.enqueue(StashShips,
-                             @ships.size - @number_of_total_ships_allowed + (@number_of_total_ships_allowed / 2),
-                             @planets_to_create_objects,
-                             @travellers_to_deploy,
-                             @armadas_to_deploy
-
-              )
-            else
-              @planets_to_create_objects.each do |arr|
-                Resque.enqueue(CreateShipsAtPlanet, arr[0], arr[1], arr[2], arr[3])
-              end
-
-              @travellers_to_deploy.each do |travs|
-                Resque.enqueue(TravellingShips, travs[0], travs[1], travs[2])
-              end
-
-              @armadas_to_deploy.each do |armad|
-                Resque.enqueue(ArmadaShips, armad[0], armad[1], armad[2])
-              end
-            end
-
-            manage_travelling_ships_actions
-            #handle_lost_planets
-            #manage_ships_in_range
-
-            repair_ships
-            MyShip.mine_all_planets
-
-            puts "End of tic actions, waiting for a new tic!"
-          else
-            Resque.enqueue(UnstashShips)
+          if @home && (@tic < 150 || @my_player.total_resources > 100000000)
+            @number_of_travelling_ships = @tic / 2
+            deploy_travelling_ships
           end
+
+          @planets_to_create_objects.each do |arr|
+            Resque.enqueue(CreateShipsAtPlanet, arr[0], arr[1], arr[2], arr[3])
+          end
+
+          @travellers_to_deploy.each do |travs|
+            Resque.enqueue(TravellingShips, travs[0], travs[1], travs[2])
+          end
+
+          @armadas_to_deploy.each do |armad|
+            Resque.enqueue(ArmadaShips, armad[0], armad[1], armad[2])
+          end
+
+          manage_travelling_ships_actions
+          #handle_lost_planets
+          #manage_ships_in_range
+
+          repair_ships
+          MyShip.mine_all_planets
+
+          puts "End of tic actions, waiting for a new tic!"
+
         end
       rescue Exception => e
         puts e.message
@@ -145,7 +130,7 @@ class Schemaverse
     defenders_to_create = 0
     repairers_to_create = 0
     if @tic > 25
-      defenders_to_create = (20 - @ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("defender") }.size)
+      defenders_to_create = (5 - @ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("defender") }.size)
       repairers_to_create = (5 - @ships.select { |ts| ts.location.eql?(planet.location) && ts.name.include?("repairer") }.size)
     end
 
@@ -317,20 +302,14 @@ class Schemaverse
   def handle_interior_ships
     puts "handling interior planets"
     # Start killing of ships at planets that in my interior
-    #@planets.sort_by { |p| Functions.distance_between(p, @home) }.each do |planet|
-    #begin
-    #  conquer_planet(planet)
-    #
-    #if planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.empty? && @mining_ships.size >= @number_of_miners_allowed
-    #stash_ships_at(planet)
-    #else
-    #planet.closest_planets(30).select { |p| p.conqueror_id != @my_player.id }.sort_by { |p| Functions.distance_between(planet, p) }.each do |p|
-    #  @armada_planets.unshift(p) if !@armada_planets.include?(p) && !@armada_targets.include?(p)
-    #end
-    #end
-    #rescue
-    #end
-    #end
+    @planets.sort_by { |p| Functions.distance_between(p, @home) }.each do |planet|
+      begin
+        if planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.empty? && @mining_ships.size >= @number_of_miners_allowed
+          ActiveRecord::Base.connection.execute("DELETE FROM my_ships WHERE id IN(#{planet.ships.collect(&:id)})")
+        end
+      rescue
+      end
+    end
   end
 
   def handle_planets_ships
@@ -525,7 +504,7 @@ class Schemaverse
         #armada_ship_grp.last.each do |armada_ship|
         #  armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
         #end
-        if armada_ship_grp.last.select { |as| as.at_destination?}.size > 0 || @planets.include?(armada_ship_grp.first)
+        if armada_ship_grp.last.select { |as| as.at_destination? }.size > 0 || @planets.include?(armada_ship_grp.first)
 
           #armada_ship_grp.last.each do |armada_ship|
           #  armada_ship.update_attributes(:action => "MINE", :action_target_id => armada_ship.objective.id)
