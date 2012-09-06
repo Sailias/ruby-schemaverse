@@ -17,7 +17,7 @@ require "#{path}/config/initializers/environment.rb"
 
 db_config = YAML::load(File.open('config/database.yml'))
 db_config.merge!(:username => USERNAME, :password => PASSWORD)
-Resque.redis = "ec2-50-112-202-82.us-west-2.compute.amazonaws.com:6379"
+#Resque.redis = "ec2-50-112-202-82.us-west-2.compute.amazonaws.com:6379"
 Resque.after_fork = Proc.new { ActiveRecord::Base.establish_connection(db_config) }
 
 
