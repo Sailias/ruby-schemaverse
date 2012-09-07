@@ -48,7 +48,7 @@ class Schemaverse
 
           populate_tic_data
           upgrade_bad_travellers
-          handle_interior_ships
+          handle_interior_ships if @ships.size > @number_of_total_ships_allowed - 200
           handle_planets_ships if @home
           refuel_ships if @tic % 2 == 0
 
@@ -315,7 +315,7 @@ class Schemaverse
   def handle_planets_ships
     puts "handling planet ships"
     #@planets.sort_by { |p| Functions.distance_between(p, @home) }.reverse.select { |p| @ships.select { |s| s.location.eql?(p.location) }.size < p.mine_limit + 20 }.first(10).each do |planet|
-    @planets.sort_by { |p| Functions.distance_between(p, @home) }.reverse.each do |planet|
+    @planets.sort_by { |p| Functions.distance_between(p, @home) }.reverse.select{|planet| !planet.closest_planets(3).select { |p| p.conqueror_id != @my_player.id }.empty? }.each do |planet|
       create_ships_for_planet(planet)
     end
   end
